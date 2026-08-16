@@ -8,7 +8,7 @@ const AuthPage = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const { login, register, isLoading, error, clearError } = useAuthState();
+  const { login, register, isLoading, error, clearError, authMode } = useAuthState();
   const [validationError, setValidationError] = useState("");
 
   const handleSubmit = async (e) => {
@@ -38,6 +38,22 @@ const AuthPage = () => {
     setPassword("");
     setConfirmPassword("");
   };
+
+  if (authMode === "proxy") {
+    return (
+      <div className="bg-theme-canvas flex min-h-screen items-center justify-center px-4">
+        <div className="border-theme-surface bg-theme-canvas-alt w-full max-w-md rounded-lg border p-8 text-center shadow-lg">
+          <h1 className="text-theme-text mb-2 text-2xl font-bold">Sign in with your provider</h1>
+          <p className="text-theme-text-muted text-sm">
+            {error || "This instance authenticates through a trusted identity proxy."}
+          </p>
+          <Button color="blue" className="mt-6 w-full" onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-theme-canvas flex min-h-screen items-center justify-center px-4">

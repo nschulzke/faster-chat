@@ -1,5 +1,6 @@
 import { getCookie } from "hono/cookie";
 import { dbUtils } from "../lib/db.js";
+import { resolveProxyUser } from "../lib/proxyAuth.js";
 
 const COOKIE_NAME = "session";
 
@@ -8,6 +9,16 @@ const COOKIE_NAME = "session";
  * Attaches user info to context: c.get('user')
  */
 export async function ensureSession(c, next) {
+  const proxy = resolveProxyUser(c);
+  if (proxy) {
+    if (proxy.error) {
+      return c.json({ error: proxy.error }, 401);
+    }
+    c.set("user", proxy.user);
+    await next();
+    return;
+  }
+
   const sessionId = getCookie(c, COOKIE_NAME);
 
   if (!sessionId) {
@@ -56,7 +67,14 @@ export function requireRole(...allowedRoles) {
  * Useful for routes that work both authenticated and unauthenticated
  */
 export async function optionalAuth(c, next) {
-  const sessionId = getCookie(c, COOKIE_NAME);
+  const proxy = resolveProxyUser(c);
+  if (proxy?.user) {
+    c.set("user", proxy.user);
+    await next();
+    return;
+  }
+
+  const sessionId = proxy ? null : getCookie(c, COOKIE_NAME);
 
   if (sessionId) {
     const session = dbUtils.getSession(sessionId);

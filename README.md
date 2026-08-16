@@ -56,6 +56,7 @@ Connect to OpenAI, Anthropic, Google, Groq, Mistral, xAI, DeepSeek, and more—o
 
 **Administration**
 - 🔐 Multi-user authentication with role-based access (admin/member/readonly)
+- 🪪 **Forward proxy SSO** — optional trusted-header auth for Authelia/Authentik/oauth2-proxy ([setup](#-forward-proxy-auth-authelia-authentik-oauth2-proxy))
 - 🔌 **Provider Hub**: Auto-discover models with [models.dev](https://models.dev) integration
 - ⬇️ **Pull Ollama models** directly from Admin Panel with progress streaming (no CLI needed)
 - 🛡️ Admin panel for user management (CRUD, password reset, role changes)
@@ -244,6 +245,52 @@ docker volume rm faster-chat_chat-data
 docker compose up -d
 ```
 
+
+## 🔐 Forward Proxy Auth (Authelia, Authentik, oauth2-proxy)
+
+Off by default. When enabled, the reverse proxy becomes the sole source of identity:
+the password login screen is bypassed, and `/api/auth/login`, `/register`, and
+`/change-password` all return 403.
+
+```bash
+PROXY_AUTH_ENABLED=true
+PROXY_AUTH_TRUSTED_PROXIES=172.16.0.0/12       # required — IPs/CIDRs, or '*'
+PROXY_AUTH_USER_HEADER=Remote-User             # or Remote-Email
+PROXY_AUTH_GROUPS_HEADER=Remote-Groups
+PROXY_AUTH_ADMIN_GROUP=chat-admins             # optional
+PROXY_AUTH_ADMIN_USER=admin@example.com        # optional
+PROXY_AUTH_AUTO_PROVISION=true
+PROXY_AUTH_LOGOUT_URL=https://auth.example.com/logout
+```
+
+**Trust boundary.** Identity headers are honored only when the connecting peer matches
+`PROXY_AUTH_TRUSTED_PROXIES`, and the server refuses to start if that list is empty.
+Keep the app on the proxy's network and never publish its port — anything that can
+reach it from a trusted IP can assert any identity.
+
+**Accounts.** A local account is created the first time an identity is seen. Set
+`PROXY_AUTH_AUTO_PROVISION=false` to restrict access to accounts an admin created
+ahead of time. Provisioned accounts have no password and can never be used for
+password login, even if proxy auth is later turned off.
+
+**Admin.** Comes from `PROXY_AUTH_ADMIN_GROUP` (matched against the groups header) or
+`PROXY_AUTH_ADMIN_USER` (matched against the identity). Setting either makes the proxy
+authoritative — the role is granted and revoked on every request, so removing someone
+from the admin group demotes them immediately. Setting neither leaves roles to the
+Admin Panel and makes the first provisioned user an admin. Non-admin roles like
+`readonly` are never overwritten.
+
+**Caddy example:**
+
+```caddyfile
+chat.example.com {
+    forward_auth authelia:9091 {
+        uri /api/verify?rd=https://auth.example.com
+        copy_headers Remote-User Remote-Groups Remote-Email
+    }
+    reverse_proxy faster-chat:8787
+}
+```
 
 ## 🗺️ Roadmap
 

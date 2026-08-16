@@ -6,6 +6,8 @@ export const useAuthState = create((set) => ({
   user: null,
   isLoading: true,
   error: null,
+  authMode: "password",
+  logoutUrl: null,
 
   setUser: (user) => set({ user, error: null }),
   setError: (error) => set({ error }),
@@ -15,7 +17,13 @@ export const useAuthState = create((set) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await authClient.getSession();
-      set({ user: data.user, isLoading: false });
+      set({
+        user: data.user,
+        authMode: data.authMode,
+        logoutUrl: data.logoutUrl,
+        error: data.error,
+        isLoading: false,
+      });
       return data.user;
     } catch (error) {
       set({ user: null, isLoading: false, error: error.message });
@@ -50,10 +58,14 @@ export const useAuthState = create((set) => ({
   logout: async () => {
     set({ isLoading: true, error: null });
     try {
-      await authClient.logout();
+      const data = await authClient.logout();
       // Clear all cached data to prevent cache bleed between users
       queryClient.clear();
       set({ user: null, isLoading: false });
+      // Proxy auth owns the session — the identity provider has to end it.
+      if (data?.logoutUrl) {
+        window.location.href = data.logoutUrl;
+      }
     } catch (error) {
       set({ isLoading: false, error: error.message });
       throw error;

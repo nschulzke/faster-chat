@@ -3,6 +3,7 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { installRouteErrorHandler } from "./lib/errorHandler.js";
+import { assertProxyAuthConfig } from "./lib/proxyAuth.js";
 import { securityHeaders } from "./middleware/securityHeaders.js";
 import { adminRouter } from "./routes/admin.js";
 import { authRouter } from "./routes/auth.js";
@@ -20,6 +21,8 @@ import { memoryRouter } from "./routes/memory.js";
 const REQUEST_BODY_LIMIT_BYTES = 50 * 1024 * 1024;
 
 export function createApp({ enableLogger = false } = {}) {
+  assertProxyAuthConfig();
+
   const app = new Hono();
 
   installRouteErrorHandler(app);

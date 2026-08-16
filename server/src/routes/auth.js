@@ -6,9 +6,24 @@ import { hashPassword, verifyPassword } from "../lib/security.js";
 import { HTTP_STATUS } from "../lib/httpStatus.js";
 import { RATE_LIMIT, AUTH } from "../lib/constants.js";
 import { getClientIP } from "../lib/requestUtils.js";
+import {
+  PROXY_ACCOUNT_PASSWORD_HASH,
+  proxyAuthConfig,
+  resolveProxyUser,
+} from "../lib/proxyAuth.js";
 import { ensureSession } from "../middleware/auth.js";
 
 export const authRouter = new Hono();
+
+const PROXY_MODE_MESSAGE =
+  "Password authentication is disabled; sign in through the identity proxy.";
+
+function rejectInProxyMode(c) {
+  if (!proxyAuthConfig().enabled) {
+    return null;
+  }
+  return c.json({ error: PROXY_MODE_MESSAGE }, HTTP_STATUS.FORBIDDEN);
+}
 
 // Validation schemas
 const RegisterSchema = z.object({
@@ -40,6 +55,11 @@ const COOKIE_OPTIONS = {
 };
 
 authRouter.post("/register", async (c) => {
+  const blocked = rejectInProxyMode(c);
+  if (blocked) {
+    return blocked;
+  }
+
   const ip = getClientIP(c);
   if (!checkRateLimit(`register:ip:${ip}`)) {
     return c.json(
@@ -98,6 +118,11 @@ authRouter.post("/register", async (c) => {
 });
 
 authRouter.post("/login", async (c) => {
+  const blocked = rejectInProxyMode(c);
+  if (blocked) {
+    return blocked;
+  }
+
   const ip = getClientIP(c);
 
   const body = await c.req.json();
@@ -115,7 +140,7 @@ authRouter.post("/login", async (c) => {
 
   // Get user
   const user = dbUtils.getUserByUsername(username);
-  if (!user) {
+  if (!user || user.password_hash === PROXY_ACCOUNT_PASSWORD_HASH) {
     dbUtils.createAuditLog(null, "login_failed", "user", null, `username: ${username}`, ip);
     return c.json({ error: "Invalid credentials" }, HTTP_STATUS.UNAUTHORIZED);
   }
@@ -148,6 +173,22 @@ authRouter.post("/login", async (c) => {
 });
 
 authRouter.post("/logout", async (c) => {
+  const config = proxyAuthConfig();
+  if (config.enabled) {
+    const proxy = resolveProxyUser(c);
+    if (proxy.user) {
+      dbUtils.createAuditLog(
+        proxy.user.id,
+        "logout",
+        "user",
+        String(proxy.user.id),
+        "proxy",
+        getClientIP(c)
+      );
+    }
+    return c.json({ success: true, logoutUrl: config.logoutUrl });
+  }
+
   const sessionId = getCookie(c, COOKIE_NAME);
 
   if (sessionId) {
@@ -177,10 +218,22 @@ authRouter.post("/logout", async (c) => {
 });
 
 authRouter.get("/session", async (c) => {
+  const proxy = resolveProxyUser(c);
+  if (proxy) {
+    const { logoutUrl } = proxyAuthConfig();
+    if (proxy.error) {
+      return c.json(
+        { user: null, authMode: "proxy", error: proxy.error },
+        HTTP_STATUS.UNAUTHORIZED
+      );
+    }
+    return c.json({ user: proxy.user, authMode: "proxy", logoutUrl });
+  }
+
   const sessionId = getCookie(c, COOKIE_NAME);
 
   if (!sessionId) {
-    return c.json({ user: null }, HTTP_STATUS.UNAUTHORIZED);
+    return c.json({ user: null, authMode: "password" }, HTTP_STATUS.UNAUTHORIZED);
   }
 
   const session = dbUtils.getSession(sessionId);
@@ -193,7 +246,7 @@ authRouter.get("/session", async (c) => {
       sameSite: COOKIE_OPTIONS.sameSite,
       path: COOKIE_OPTIONS.path,
     });
-    return c.json({ user: null }, HTTP_STATUS.UNAUTHORIZED);
+    return c.json({ user: null, authMode: "password" }, HTTP_STATUS.UNAUTHORIZED);
   }
 
   return c.json({
@@ -202,6 +255,7 @@ authRouter.get("/session", async (c) => {
       username: session.username,
       role: session.role,
     },
+    authMode: "password",
     session: {
       expiresAt: session.expires_at,
     },
@@ -209,6 +263,11 @@ authRouter.get("/session", async (c) => {
 });
 
 authRouter.put("/change-password", ensureSession, async (c) => {
+  const blocked = rejectInProxyMode(c);
+  if (blocked) {
+    return blocked;
+  }
+
   const user = c.get("user");
   const body = await c.req.json();
   const { currentPassword, newPassword } = z
@@ -219,7 +278,9 @@ authRouter.put("/change-password", ensureSession, async (c) => {
     .parse(body);
 
   const dbUser = dbUtils.getUserByUsername(user.username);
-  const valid = await verifyPassword(dbUser.password_hash, currentPassword);
+  const valid =
+    dbUser.password_hash !== PROXY_ACCOUNT_PASSWORD_HASH &&
+    (await verifyPassword(dbUser.password_hash, currentPassword));
   if (!valid) {
     return c.json({ error: "Current password is incorrect" }, HTTP_STATUS.UNAUTHORIZED);
   }

@@ -80,7 +80,7 @@ export async function seedMemberUser(app, adminCookie) {
   return { user: body.user, cookie };
 }
 
-export function makeRequest(app, method, path, { body, cookie, headers = {} } = {}) {
+export function makeRequest(app, method, path, { body, cookie, headers = {}, peerIP } = {}) {
   const opts = { method, headers: { ...headers } };
   if (body) {
     opts.headers["Content-Type"] = "application/json";
@@ -89,5 +89,6 @@ export function makeRequest(app, method, path, { body, cookie, headers = {} } = 
   if (cookie) {
     opts.headers.Cookie = cookie;
   }
-  return app.request(path, opts);
+  const env = peerIP ? { incoming: { socket: { remoteAddress: peerIP } } } : undefined;
+  return app.request(path, opts, env);
 }
