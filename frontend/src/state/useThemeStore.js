@@ -63,6 +63,27 @@ const BUNDLED_THEMES = [
   { id: "knitly", name: "Knitly", path: "/themes/knitly.json" },
 ];
 
+// Appearance modes, in the order the toolbar toggle cycles through them
+export const MODE_CYCLE = ["system", "light", "dark"];
+
+const DARK_QUERY = "(prefers-color-scheme: dark)";
+
+// "system" follows the OS; light/dark are explicit
+const systemQuery = () => (typeof window === "undefined" ? null : window.matchMedia?.(DARK_QUERY));
+
+const resolveMode = (mode) => {
+  if (mode !== "system") {
+    return mode;
+  }
+  const query = systemQuery();
+  if (!query) {
+    return "dark";
+  }
+  return query.matches ? "dark" : "light";
+};
+
+let systemModeQuery = null;
+
 // Cache for loaded theme data
 const themeCache = new Map();
 
@@ -132,13 +153,27 @@ const applyFontSettings = (fontId, fontSizeId) => {
   root.style.setProperty("--theme-font-size-chat", sizePreset.size);
 };
 
+// Paint a mode: remember it, resolve "system", and repaint the document
+const applyMode = (mode, currentTheme, set) => {
+  const resolvedMode = resolveMode(mode);
+
+  set({ mode, resolvedMode });
+  document.documentElement.classList.toggle("dark", resolvedMode === "dark");
+
+  if (currentTheme) {
+    applyThemeColors(currentTheme.colors, resolvedMode);
+  }
+};
+
 export const useThemeStore = create(
   persist(
     (set, get) => ({
       // Current theme ID
       themeId: "default",
-      // Current mode (light/dark)
-      mode: "dark",
+      // Chosen mode (light/dark/system)
+      mode: "system",
+      // Mode actually painted — "system" resolved against the OS preference
+      resolvedMode: resolveMode("system"),
       // Loaded theme data
       currentTheme: null,
       // Available themes
@@ -155,19 +190,35 @@ export const useThemeStore = create(
         const themeMeta = BUNDLED_THEMES.find((t) => t.id === themeId) || BUNDLED_THEMES[0];
 
         set({ isLoading: true });
+        get().watchSystemMode();
 
         try {
           const theme = await loadTheme(themeMeta.path);
           set({ currentTheme: theme, isLoading: false });
-          applyThemeColors(theme.colors, mode);
+          applyMode(mode, theme, set);
           applyFontSettings(chatFont, chatFontSize);
-
-          // Apply dark class for Tailwind
-          document.documentElement.classList.toggle("dark", mode === "dark");
         } catch (error) {
           console.error("Failed to initialize theme:", error);
           set({ isLoading: false });
         }
+      },
+
+      // Repaint when the OS preference changes, while following it
+      watchSystemMode: () => {
+        if (systemModeQuery) {
+          return;
+        }
+
+        systemModeQuery = systemQuery();
+        if (!systemModeQuery) {
+          return;
+        }
+
+        systemModeQuery.addEventListener("change", () => {
+          if (get().mode === "system") {
+            applyMode("system", get().currentTheme, set);
+          }
+        });
       },
 
       // Set theme by ID
@@ -177,48 +228,29 @@ export const useThemeStore = create(
           return;
         }
 
-        const { mode } = get();
         set({ isLoading: true });
 
         try {
           const theme = await loadTheme(themeMeta.path);
           set({ themeId, currentTheme: theme, isLoading: false });
-          applyThemeColors(theme.colors, mode);
+          applyThemeColors(theme.colors, get().resolvedMode);
         } catch (error) {
           console.error("Failed to set theme:", error);
           set({ isLoading: false });
         }
       },
 
-      // Toggle between light and dark mode
+      // Step through system -> light -> dark
       toggleMode: () => {
         const { mode, currentTheme } = get();
-        const newMode = mode === "light" ? "dark" : "light";
+        const nextMode = MODE_CYCLE[(MODE_CYCLE.indexOf(mode) + 1) % MODE_CYCLE.length];
 
-        set({ mode: newMode });
-
-        // Apply dark class for Tailwind
-        document.documentElement.classList.toggle("dark", newMode === "dark");
-
-        // Re-apply theme colors for new mode
-        if (currentTheme) {
-          applyThemeColors(currentTheme.colors, newMode);
-        }
+        applyMode(nextMode, currentTheme, set);
       },
 
       // Set mode explicitly
       setMode: (newMode) => {
-        const { currentTheme } = get();
-
-        set({ mode: newMode });
-
-        // Apply dark class for Tailwind
-        document.documentElement.classList.toggle("dark", newMode === "dark");
-
-        // Re-apply theme colors for new mode
-        if (currentTheme) {
-          applyThemeColors(currentTheme.colors, newMode);
-        }
+        applyMode(newMode, get().currentTheme, set);
       },
 
       // Set chat font

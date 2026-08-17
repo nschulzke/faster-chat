@@ -1,14 +1,20 @@
-import { useThemeStore } from "@/state/useThemeStore";
-import { Moon, Sun } from "lucide-preact";
+import { useThemeStore, MODE_CYCLE } from "@/state/useThemeStore";
+import { Monitor, Moon, Sun } from "lucide-preact";
 import { useRef } from "preact/hooks";
 
 const CLICK_SOUND_PATH = "/sounds/light-on.mp3";
 const CLICK_SOUND_VOLUME = 0.25;
 
+const MODE_LABELS = { system: "System", light: "Light", dark: "Dark" };
+const MODE_ICONS = { system: Monitor, light: Sun, dark: Moon };
+
 export const ThemeToggle = () => {
   const mode = useThemeStore((state) => state.mode);
   const toggleMode = useThemeStore((state) => state.toggleMode);
   const clickSoundRef = useRef(null);
+
+  const nextMode = MODE_CYCLE[(MODE_CYCLE.indexOf(mode) + 1) % MODE_CYCLE.length];
+  const Icon = MODE_ICONS[mode] ?? Monitor;
 
   const handleToggle = () => {
     toggleMode();
@@ -31,8 +37,9 @@ export const ThemeToggle = () => {
     <button
       onClick={handleToggle}
       className="text-theme-text-muted hover:bg-theme-surface-strong/50 hover:text-theme-text flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-      aria-label={`Switch to ${mode === "light" ? "dark" : "light"} mode`}>
-      {mode === "light" ? <Moon size={18} /> : <Sun size={18} />}
+      title={`${MODE_LABELS[mode]} theme`}
+      aria-label={`Theme: ${MODE_LABELS[mode]}. Switch to ${MODE_LABELS[nextMode]}.`}>
+      <Icon size={18} />
     </button>
   );
 };

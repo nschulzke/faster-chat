@@ -16,7 +16,7 @@ export const queryClient = new QueryClient({
 
 const App = () => {
   const initializeTheme = useThemeStore((state) => state.initializeTheme);
-  const mode = useThemeStore((state) => state.mode);
+  const resolvedMode = useThemeStore((state) => state.resolvedMode);
   useEffect(() => {
     initializeTheme();
   }, []);
@@ -25,7 +25,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
       <Toaster
-        theme={mode}
+        theme={resolvedMode}
         position="bottom-right"
         toastOptions={{
           className: "!bg-theme-surface !text-theme-text !border-theme-border",

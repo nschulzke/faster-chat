@@ -1,6 +1,6 @@
 import { useThemeStore } from "@/state/useThemeStore";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Moon, Sun } from "lucide-preact";
+import { Check, Monitor, Moon, Sun } from "lucide-preact";
 
 // Mini color swatches showing the theme's personality
 const ThemeSwatch = ({ colors, mode }) => {
@@ -21,6 +21,7 @@ const ThemeSwatch = ({ colors, mode }) => {
 // Mode toggle button
 const ModeToggle = ({ mode, setMode }) => {
   const modes = [
+    { id: "system", icon: Monitor, label: "System" },
     { id: "light", icon: Sun, label: "Light" },
     { id: "dark", icon: Moon, label: "Dark" },
   ];
@@ -45,7 +46,8 @@ const ModeToggle = ({ mode, setMode }) => {
 };
 
 export const ThemeSelector = () => {
-  const { themeId, mode, availableThemes, currentTheme, setTheme, setMode } = useThemeStore();
+  const { themeId, mode, resolvedMode, availableThemes, currentTheme, setTheme, setMode } =
+    useThemeStore();
 
   // Build theme objects with their data for display
   const themesWithData = availableThemes.map((t) => ({
@@ -73,7 +75,7 @@ export const ThemeSelector = () => {
               themePath={theme.path}
               isSelected={themeId === theme.id}
               onSelect={setTheme}
-              mode={mode}
+              mode={resolvedMode}
             />
           ))}
         </div>
