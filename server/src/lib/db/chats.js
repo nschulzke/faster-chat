@@ -213,6 +213,99 @@ export function createChatUtils({ db }) {
       return result.changes > 0;
     },
 
+    getMessageByIdAndChat(messageId, chatId) {
+      const stmt = db.prepare("SELECT rowid, * FROM messages WHERE id = ? AND chat_id = ?");
+      return stmt.get(messageId, chatId);
+    },
+
+    // Delete the target message and everything after it in the chat.
+    // Junction rows cascade; file rows are left intact.
+    truncateChatFromMessage(chatId, target) {
+      // Junction rows cascade into `changes`, so count the messages separately
+      const countStmt = db.prepare(`
+      SELECT COUNT(*) as count FROM messages
+      WHERE chat_id = ? AND (created_at > ? OR (created_at = ? AND rowid >= ?))
+    `);
+      const deleteStmt = db.prepare(`
+      DELETE FROM messages
+      WHERE chat_id = ? AND (created_at > ? OR (created_at = ? AND rowid >= ?))
+    `);
+      const bumpStmt = db.prepare("UPDATE chats SET updated_at = ? WHERE id = ?");
+      const args = [chatId, target.created_at, target.created_at, target.rowid];
+
+      return db.transaction(() => {
+        const { count } = countStmt.get(...args);
+        deleteStmt.run(...args);
+        bumpStmt.run(Date.now(), chatId);
+        return count;
+      })();
+    },
+
+    // Copy a chat up to (excluding) the target message into a new chat.
+    // Copied messages keep their original timestamps and point at the same file rows.
+    copyChatBeforeMessage(chat, target) {
+      const newChatId = crypto.randomUUID();
+      const now = Date.now();
+
+      const selectMessages = db.prepare(`
+      SELECT rowid, * FROM messages
+      WHERE chat_id = ? AND (created_at < ? OR (created_at = ? AND rowid < ?))
+      ORDER BY created_at ASC, rowid ASC
+    `);
+      const selectFiles = db.prepare(`
+      SELECT file_id, created_at FROM message_files
+      WHERE message_id = ? ORDER BY created_at ASC, rowid ASC
+    `);
+      const insertChat = db.prepare(`
+      INSERT INTO chats (id, user_id, title, folder_id, memory_disabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+      const insertMessage = db.prepare(`
+      INSERT INTO messages (id, chat_id, user_id, role, content, model, metadata, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+      const insertFile = db.prepare(
+        "INSERT INTO message_files (message_id, file_id, created_at) VALUES (?, ?, ?)"
+      );
+
+      return db.transaction(() => {
+        insertChat.run(
+          newChatId,
+          chat.user_id,
+          chat.title,
+          chat.folder_id,
+          chat.memory_disabled ?? 0,
+          now,
+          now
+        );
+
+        const rows = selectMessages.all(
+          chat.id,
+          target.created_at,
+          target.created_at,
+          target.rowid
+        );
+        for (const row of rows) {
+          const copyId = crypto.randomUUID();
+          insertMessage.run(
+            copyId,
+            newChatId,
+            row.user_id,
+            row.role,
+            row.content,
+            row.model,
+            row.metadata,
+            row.created_at
+          );
+          for (const file of selectFiles.all(row.id)) {
+            insertFile.run(copyId, file.file_id, file.created_at);
+          }
+        }
+
+        return { chatId: newChatId, messageCount: rows.length };
+      })();
+    },
+
     deleteMessagesByChat(chatId) {
       const stmt = db.prepare("DELETE FROM messages WHERE chat_id = ?");
       const result = stmt.run(chatId);

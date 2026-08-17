@@ -1,8 +1,10 @@
 import { MarkdownContent } from "@/components/markdown/MarkdownRenderer";
 import { extractTextContent } from "@/lib/messageUtils";
 import { memo } from "@preact/compat";
-import { AlertTriangle, Brain, ChevronDown, Sparkles } from "lucide-preact";
+import { useState } from "preact/hooks";
+import { AlertTriangle, Brain, ChevronDown, Pencil, Sparkles } from "lucide-preact";
 import MessageAttachment from "./MessageAttachment";
+import MessageEditor from "./MessageEditor";
 import ModelAvatar from "./ModelAvatar";
 import SearchStatus from "./SearchStatus";
 import SourceCitations, { extractSources, TOOL_ERROR_MESSAGES } from "./SourceCitations";
@@ -40,7 +42,8 @@ const parseThinkingBlocks = (text) => {
   return { thinking, content };
 };
 
-const MessageItem = memo(({ message, onStop, onRegenerate }) => {
+const MessageItem = memo(({ message, onStop, onRegenerate, onEdit }) => {
+  const [isEditing, setIsEditing] = useState(false);
   const isUser = message.role === "user";
   const rawContent = extractTextContent(message);
   const { thinking, content } = isUser
@@ -48,6 +51,7 @@ const MessageItem = memo(({ message, onStop, onRegenerate }) => {
     : parseThinkingBlocks(rawContent);
   const isStreaming = message.experimental_status === "streaming";
   const showActions = !isUser && (onStop || onRegenerate);
+  const canEdit = isUser && !!onEdit;
   const hasAttachments = message.fileIds && message.fileIds.length > 0;
   const modelName = message.model;
   const hasThinking = thinking.length > 0;
@@ -62,7 +66,7 @@ const MessageItem = memo(({ message, onStop, onRegenerate }) => {
       ) || [];
 
   return (
-    <div className={`mb-8 flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`group mb-8 flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
       <div
         className={`flex max-w-[85%] gap-4 md:max-w-[85%] ${isUser ? "flex-row-reverse" : "flex-row"}`}>
         {!isUser && <ModelAvatar modelId={modelName} />}
@@ -121,11 +125,38 @@ const MessageItem = memo(({ message, onStop, onRegenerate }) => {
             </div>
           )}
 
-          <div className={isUser ? "max-h-[60vh] overflow-y-auto font-medium" : ""}>
-            <MarkdownContent content={content} />
-          </div>
+          {isEditing ? (
+            <MessageEditor
+              initialContent={content}
+              onCancel={() => setIsEditing(false)}
+              onSave={(edited) =>
+                onEdit({
+                  messageId: message.id,
+                  content: edited,
+                  fileIds: message.fileIds || [],
+                })
+              }
+            />
+          ) : (
+            <div className={isUser ? "max-h-[60vh] overflow-y-auto font-medium" : ""}>
+              <MarkdownContent content={content} />
+            </div>
+          )}
 
           {sources.length > 0 && <SourceCitations sources={sources} />}
+
+          {canEdit && !isEditing && (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                aria-label="Edit message"
+                title="Edit message"
+                className="text-theme-text-muted hover:text-theme-text rounded-lg p-1 opacity-0 transition-opacity duration-75 group-hover:opacity-100 focus-visible:opacity-100">
+                <Pencil size={16} />
+              </button>
+            </div>
+          )}
 
           {showActions && (
             <div className="mt-4 flex justify-end gap-2">

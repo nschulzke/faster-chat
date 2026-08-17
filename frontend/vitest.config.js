@@ -20,5 +20,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     include: ["src/**/*.test.{js,jsx}"],
+    // Inlined so the react -> @preact/compat alias applies inside these packages
+    server: { deps: { inline: ["zustand", "@tanstack/react-query"] } },
   },
 });

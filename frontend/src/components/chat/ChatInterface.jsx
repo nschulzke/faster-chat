@@ -9,6 +9,8 @@ import { useChatMemoryEnabled } from "@/hooks/useMemoryStatus";
 import { useChatNavigation } from "@/hooks/useChatNavigation";
 import { useCreateChatMutation, useCreateMessageMutation } from "@/hooks/useChatsQuery";
 import { useImageGeneration } from "@/hooks/useImageGeneration";
+import { useEditResubmit } from "@/hooks/useEditResubmit";
+import { usePendingResubmit } from "@/hooks/usePendingResubmit";
 import { useUiState } from "@/state/useUiState";
 import { providersClient } from "@/lib/providersClient";
 import { CACHE_DURATIONS } from "@faster-chat/shared";
@@ -16,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { toast, Toaster } from "sonner";
+import EditMessageDialog from "./EditMessageDialog";
 import InputArea from "./InputArea";
 import MessageList from "./MessageList";
 import ModelSelector from "./ModelSelector";
@@ -64,6 +67,7 @@ const ChatInterface = ({ chatId }) => {
   };
   const scrollContainerRef = useRef(null);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
 
   const {
     messages,
@@ -77,9 +81,11 @@ const ChatInterface = ({ chatId }) => {
     error: chatError,
     clearError,
     isLoading,
+    isMessagesLoading,
     status,
     stop,
     regenerate,
+    resetStream,
     setInput,
   } = useChat({
     id: chatId,
@@ -141,6 +147,34 @@ const ChatInterface = ({ chatId }) => {
     );
   }
 
+  const editTargetIndex = editTarget
+    ? messages.findIndex((msg) => msg.id === editTarget.messageId)
+    : -1;
+  const removedCount = editTargetIndex === -1 ? 0 : messages.length - editTargetIndex - 1;
+
+  function handleEditRequest(target) {
+    if (isLoading) {
+      toast.error("Wait for the current response to finish");
+      return;
+    }
+    setEditTarget(target);
+  }
+
+  async function handleEditResubmit(mode) {
+    const target = editTarget;
+    try {
+      await resubmitEdit(target, mode);
+      setEditTarget(null);
+    } catch (err) {
+      setEditTarget(null);
+      toast.error(err.message || "Failed to edit message");
+    }
+  }
+
+  const { resubmitEdit, isPending: isRewinding } = useEditResubmit({ chatId, resetStream });
+
+  usePendingResubmit({ chatId, isMessagesLoading, submitMessage });
+
   useLayoutEffect(() => {
     if (!scrollContainerRef.current || !autoScroll) return;
     scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
@@ -188,6 +222,7 @@ const ChatInterface = ({ chatId }) => {
               status={status}
               onStop={stop}
               onRegenerate={regenerate}
+              onEditMessage={handleEditRequest}
             />
           </div>
         </div>
@@ -225,6 +260,16 @@ const ChatInterface = ({ chatId }) => {
 
       {showVoiceSettings && (
         <VoiceSettings voiceControls={voice} onClose={() => setShowVoiceSettings(false)} />
+      )}
+
+      {editTarget && (
+        <EditMessageDialog
+          removedCount={removedCount}
+          isPending={isRewinding}
+          onCancel={() => setEditTarget(null)}
+          onCopy={() => handleEditResubmit("copy")}
+          onReplace={() => handleEditResubmit("replace")}
+        />
       )}
     </div>
   );

@@ -71,6 +71,13 @@ export const chatsClient = {
     });
   },
 
+  async rewindMessage(chatId, messageId, mode) {
+    return chatsFetch(`/${chatId}/messages/${messageId}/rewind`, {
+      method: "POST",
+      body: JSON.stringify({ mode }),
+    });
+  },
+
   async deleteMessage(chatId, messageId) {
     return chatsFetch(`/${chatId}/messages/${messageId}`, {
       method: "DELETE",

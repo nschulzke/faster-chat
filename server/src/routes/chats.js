@@ -49,6 +49,10 @@ const PatchChatSchema = z.object({
   title: z.string().max(200).optional(),
 });
 
+const RewindSchema = z.object({
+  mode: z.enum(["replace", "copy"]),
+});
+
 function truncateToTitle(text) {
   if (text.length <= UI_CONSTANTS.CHAT_TITLE_MAX_LENGTH) {
     return text;
@@ -276,6 +280,28 @@ chatsRouter.post("/:chatId/messages", async (c) => {
     },
     HTTP_STATUS.CREATED
   );
+});
+
+chatsRouter.post("/:chatId/messages/:messageId/rewind", async (c) => {
+  const chat = c.get("chat");
+  const messageId = c.req.param("messageId");
+  const { mode } = RewindSchema.parse(await c.req.json().catch(() => ({})));
+
+  const target = dbUtils.getMessageByIdAndChat(messageId, chat.id);
+  if (!target) {
+    return c.json({ error: "Message not found" }, HTTP_STATUS.NOT_FOUND);
+  }
+  if (target.role !== "user") {
+    return c.json({ error: "Only user messages can be edited" }, HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (mode === "copy") {
+    const copy = dbUtils.copyChatBeforeMessage(chat, target);
+    return c.json({ chatId: copy.chatId, removedCount: 0 });
+  }
+
+  const removedCount = dbUtils.truncateChatFromMessage(chat.id, target);
+  return c.json({ chatId: chat.id, removedCount });
 });
 
 chatsRouter.delete("/:chatId/messages/:messageId", async (c) => {

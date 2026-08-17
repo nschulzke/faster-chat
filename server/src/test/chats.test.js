@@ -6,20 +6,21 @@ import {
   seedMemberUser,
   makeRequest,
 } from "./helpers.js";
-import { dbUtils } from "../lib/db.js";
+import db, { dbUtils } from "../lib/db.js";
 import { createMultimodalContent } from "../lib/completion.js";
 import { unlink } from "fs/promises";
 import path from "path";
 import { FILE_CONFIG } from "../lib/fileUtils.js";
 
 describe("chat routes", () => {
-  let app, adminCookie, memberCookie;
+  let app, adminCookie, memberCookie, adminUserId;
 
   beforeAll(async () => {
     resetDatabase();
     app = createTestApp();
     const admin = await seedAdminUser(app);
     adminCookie = admin.cookie;
+    adminUserId = admin.user.id;
     const member = await seedMemberUser(app, adminCookie);
     memberCookie = member.cookie;
   });
@@ -218,6 +219,306 @@ describe("chat routes", () => {
       const listData = await listRes.json();
       const found = listData.messages.find((m) => m.id === messageId);
       expect(found).toBeUndefined();
+    });
+  });
+
+  describe("message rewind", () => {
+    async function seedRewindChat() {
+      const chatRes = await makeRequest(app, "POST", "/api/chats", {
+        body: { title: "Rewind Chat" },
+        cookie: adminCookie,
+      });
+      const chat = await chatRes.json();
+
+      const fileId = crypto.randomUUID();
+      dbUtils.createFile(
+        fileId,
+        adminUserId,
+        "notes.txt",
+        `${fileId}.txt`,
+        `/tmp/${fileId}.txt`,
+        "text/plain",
+        12
+      );
+
+      const messages = [];
+      const sequence = [
+        { role: "user", content: "first question" },
+        { role: "assistant", content: "first answer", model: "gpt-4o" },
+        { role: "user", content: "second question", fileIds: [fileId] },
+        { role: "assistant", content: "second answer", model: "gpt-4o" },
+        { role: "user", content: "third question" },
+      ];
+      for (const message of sequence) {
+        const res = await makeRequest(app, "POST", `/api/chats/${chat.id}/messages`, {
+          body: message,
+          cookie: adminCookie,
+        });
+        messages.push(await res.json());
+      }
+
+      return { chatId: chat.id, fileId, messages };
+    }
+
+    function listMessages(chatId, cookie = adminCookie) {
+      return makeRequest(app, "GET", `/api/chats/${chatId}/messages`, { cookie }).then((res) =>
+        res.json()
+      );
+    }
+
+    test("replace mode removes the target message and everything after it", async () => {
+      const { chatId, messages } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${messages[2].id}/rewind`,
+        { body: { mode: "replace" }, cookie: adminCookie }
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.chatId).toBe(chatId);
+      expect(data.removedCount).toBe(3);
+
+      const remaining = await listMessages(chatId);
+      expect(remaining.messages.map((m) => m.content)).toEqual(["first question", "first answer"]);
+    });
+
+    test("replace mode unlinks attachments of removed messages but keeps the file", async () => {
+      const { chatId, fileId, messages } = await seedRewindChat();
+
+      await makeRequest(app, "POST", `/api/chats/${chatId}/messages/${messages[2].id}/rewind`, {
+        body: { mode: "replace" },
+        cookie: adminCookie,
+      });
+
+      const junction = db
+        .prepare("SELECT COUNT(*) as count FROM message_files WHERE message_id = ?")
+        .get(messages[2].id);
+      expect(junction.count).toBe(0);
+      expect(dbUtils.getFileById(fileId)).toBeTruthy();
+    });
+
+    test("copy mode copies the prefix into a new chat and leaves the source untouched", async () => {
+      const { chatId, messages } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${messages[2].id}/rewind`,
+        { body: { mode: "copy" }, cookie: adminCookie }
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.chatId).not.toBe(chatId);
+      expect(data.removedCount).toBe(0);
+
+      const copied = await listMessages(data.chatId);
+      expect(copied.messages.map((m) => m.content)).toEqual(["first question", "first answer"]);
+      expect(copied.messages[1].model).toBe("gpt-4o");
+      expect(copied.messages[0].createdAt).toBe(messages[0].createdAt);
+      expect(copied.messages[0].id).not.toBe(messages[0].id);
+
+      const source = await listMessages(chatId);
+      expect(source.messages).toHaveLength(5);
+
+      const copiedChat = await makeRequest(app, "GET", `/api/chats/${data.chatId}`, {
+        cookie: adminCookie,
+      }).then((r) => r.json());
+      expect(copiedChat.title).toBe("Rewind Chat");
+    });
+
+    test("copy mode preserves attachments on copied messages", async () => {
+      const { chatId, fileId, messages } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${messages[4].id}/rewind`,
+        { body: { mode: "copy" }, cookie: adminCookie }
+      );
+      const data = await res.json();
+
+      const copied = await listMessages(data.chatId);
+      expect(copied.messages).toHaveLength(4);
+      expect(copied.messages[2].fileIds).toEqual([fileId]);
+    });
+
+    test("rejects rewinding an assistant message", async () => {
+      const { chatId, messages } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${messages[1].id}/rewind`,
+        { body: { mode: "replace" }, cookie: adminCookie }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    test("orders by rowid when messages share a timestamp", async () => {
+      const { chatId, messages } = await seedRewindChat();
+      db.prepare("UPDATE messages SET created_at = ? WHERE chat_id = ?").run(
+        messages[0].createdAt,
+        chatId
+      );
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${messages[2].id}/rewind`,
+        { body: { mode: "replace" }, cookie: adminCookie }
+      );
+      const data = await res.json();
+      expect(data.removedCount).toBe(3);
+
+      const remaining = await listMessages(chatId);
+      expect(remaining.messages.map((m) => m.content)).toEqual(["first question", "first answer"]);
+    });
+
+    test("copy mode preserves assistant metadata", async () => {
+      const chatRes = await makeRequest(app, "POST", "/api/chats", {
+        body: { title: "Metadata Chat" },
+        cookie: adminCookie,
+      });
+      const chat = await chatRes.json();
+      const metadata = { toolParts: [{ type: "tool-invocation", toolName: "webSearch" }] };
+      const sequence = [
+        { role: "user", content: "search for something" },
+        { role: "assistant", content: "here you go", model: "gpt-4o", metadata },
+        { role: "user", content: "follow up" },
+      ];
+      const created = [];
+      for (const message of sequence) {
+        const res = await makeRequest(app, "POST", `/api/chats/${chat.id}/messages`, {
+          body: message,
+          cookie: adminCookie,
+        });
+        created.push(await res.json());
+      }
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chat.id}/messages/${created[2].id}/rewind`,
+        { body: { mode: "copy" }, cookie: adminCookie }
+      );
+      const data = await res.json();
+
+      const copied = await listMessages(data.chatId);
+      expect(copied.messages[1].metadata).toEqual(metadata);
+    });
+
+    test("copy mode at the first message creates an empty chat", async () => {
+      const { chatId, messages } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${messages[0].id}/rewind`,
+        { body: { mode: "copy" }, cookie: adminCookie }
+      );
+      const data = await res.json();
+
+      const copied = await listMessages(data.chatId);
+      expect(copied.messages).toHaveLength(0);
+    });
+
+    test("rejects a request with no body", async () => {
+      const { chatId, messages } = await seedRewindChat();
+
+      const res = await app.request(`/api/chats/${chatId}/messages/${messages[0].id}/rewind`, {
+        method: "POST",
+        headers: { Cookie: adminCookie },
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test("rejects an unknown mode", async () => {
+      const { chatId, messages } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${messages[0].id}/rewind`,
+        { body: { mode: "branch" }, cookie: adminCookie }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    test("returns 404 for a message that is not in the chat", async () => {
+      const { chatId } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${crypto.randomUUID()}/rewind`,
+        { body: { mode: "replace" }, cookie: adminCookie }
+      );
+      expect(res.status).toBe(404);
+    });
+
+    test("returns 404 for a message belonging to another of the user's chats", async () => {
+      const other = await seedRewindChat();
+      const { chatId } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${other.messages[2].id}/rewind`,
+        { body: { mode: "replace" }, cookie: adminCookie }
+      );
+      expect(res.status).toBe(404);
+
+      const untouched = await listMessages(chatId);
+      expect(untouched.messages).toHaveLength(5);
+    });
+
+    test("truncation is scoped to its own chat", async () => {
+      const { chatId, messages } = await seedRewindChat();
+      // Seeded second, so its rows sit above the cut on both timestamp and rowid
+      const other = await seedRewindChat();
+      db.prepare("UPDATE messages SET created_at = ? WHERE chat_id = ? OR chat_id = ?").run(
+        messages[0].createdAt,
+        chatId,
+        other.chatId
+      );
+
+      await makeRequest(app, "POST", `/api/chats/${chatId}/messages/${messages[0].id}/rewind`, {
+        body: { mode: "replace" },
+        cookie: adminCookie,
+      });
+
+      const otherMessages = await listMessages(other.chatId);
+      expect(otherMessages.messages).toHaveLength(5);
+    });
+
+    test("replace bumps the chat's updated_at", async () => {
+      const { chatId, messages } = await seedRewindChat();
+      db.prepare("UPDATE chats SET updated_at = 0 WHERE id = ?").run(chatId);
+
+      await makeRequest(app, "POST", `/api/chats/${chatId}/messages/${messages[2].id}/rewind`, {
+        body: { mode: "replace" },
+        cookie: adminCookie,
+      });
+
+      const chat = db.prepare("SELECT updated_at FROM chats WHERE id = ?").get(chatId);
+      expect(chat.updated_at).toBeGreaterThan(0);
+    });
+
+    test("member cannot rewind admin's message", async () => {
+      const { chatId, messages } = await seedRewindChat();
+
+      const res = await makeRequest(
+        app,
+        "POST",
+        `/api/chats/${chatId}/messages/${messages[0].id}/rewind`,
+        { body: { mode: "replace" }, cookie: memberCookie }
+      );
+      expect(res.status).toBe(404);
+
+      const remaining = await listMessages(chatId);
+      expect(remaining.messages).toHaveLength(5);
     });
   });
 

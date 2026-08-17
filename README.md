@@ -47,6 +47,7 @@ Connect to OpenAI, Anthropic, Google, Groq, Mistral, xAI, DeepSeek, and more—o
 - 🔍 **Web search** — AI can search the web and cite sources inline (Brave Search)
 - 🖼️ **Image support** — Upload images for vision analysis, generate images with DALL-E, FLUX, and OpenRouter models
 - 📥 **Import conversations** from ChatGPT exports (more formats coming soon)
+- ✏️ **Edit & resend** — Fix a past message and rerun it, either replacing the rest of the chat or continuing in a copy
 - 📎 File attachments with preview and download
 - 📝 Markdown rendering with syntax highlighting (Shiki) and LaTeX support
 - 🎨 **Themable UI** — 15+ color themes, dark/light mode, custom fonts, syntax highlighting themes
@@ -298,7 +299,7 @@ Faster Chat has reached its stated goal — a lighter, faster, more private alte
 
 **What's next**:
 - Chat export to JSON/Markdown ([#27](https://github.com/1337hero/faster-chat/issues/27)) and Claude import ([#28](https://github.com/1337hero/faster-chat/issues/28)) — closing the data-ownership loop
-- Inline message editing ([#29](https://github.com/1337hero/faster-chat/issues/29)), full-text message search ([#30](https://github.com/1337hero/faster-chat/issues/30)), per-chat system prompt/temperature ([#31](https://github.com/1337hero/faster-chat/issues/31))
+- Full-text message search ([#30](https://github.com/1337hero/faster-chat/issues/30)), per-chat system prompt/temperature ([#31](https://github.com/1337hero/faster-chat/issues/31))
 - Minimal personal prompt templates ([#34](https://github.com/1337hero/faster-chat/issues/34))
 
 **Explicitly not planned**: knowledge bases/RAG, conversation branching, model arenas, MCP, plugin systems, PostgreSQL, mobile apps, i18n, public share links. Each either grows a second product inside this one or is a permanent maintenance tax. A finished tool that stays sharp beats an ambitious one that rusts — don't become Open WebUI.

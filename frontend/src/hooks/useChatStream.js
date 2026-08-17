@@ -86,6 +86,7 @@ export function useChatStream({
     error,
     stop,
     clearError,
+    setMessages,
   } = useAIChat({
     id: chatId,
     messages: [],
@@ -134,9 +135,16 @@ export function useChatStream({
     await sendMessage(message);
   }
 
+  // The SDK keeps its own copy of this session's messages. After the server drops
+  // messages, they must go too, or the next request re-sends them as new.
+  function reset() {
+    setMessages([]);
+  }
+
   return {
     messages,
     send,
+    reset,
     regenerate,
     stop,
     status,

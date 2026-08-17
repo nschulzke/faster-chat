@@ -65,7 +65,15 @@ const EmptyState = () => (
   </div>
 );
 
-const MessageList = ({ messages, isLoading, isGeneratingImage, status, onStop, onRegenerate }) => {
+const MessageList = ({
+  messages,
+  isLoading,
+  isGeneratingImage,
+  status,
+  onStop,
+  onRegenerate,
+  onEditMessage,
+}) => {
   const sortedMessages = sortMessagesWithUserFirst(messages);
   const lastAssistantId = sortedMessages.findLast((msg) => msg.role === "assistant")?.id;
   const isEmpty = messages.length === 0 && !isLoading && !isGeneratingImage;
@@ -86,6 +94,7 @@ const MessageList = ({ messages, isLoading, isGeneratingImage, status, onStop, o
             message={message}
             onStop={actions.stop}
             onRegenerate={actions.regenerate}
+            onEdit={onEditMessage}
           />
         );
       })}

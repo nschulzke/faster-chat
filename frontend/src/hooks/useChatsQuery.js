@@ -192,6 +192,31 @@ export function useCreateMessageMutation() {
   });
 }
 
+export function useRewindMessageMutation() {
+  const queryClient = useQueryClient();
+  const userId = useAuthState((state) => state.user?.id ?? null);
+
+  return useMutation({
+    mutationFn: ({ chatId, messageId, mode }) => chatsClient.rewindMessage(chatId, messageId, mode),
+    onSuccess: (result, { chatId, messageId, mode }) => {
+      if (mode === "replace") {
+        queryClient.setQueryData(chatKeys.messages(userId, chatId), (old) => {
+          if (!old) {
+            return old;
+          }
+          const index = old.findIndex((msg) => msg.id === messageId);
+          return index === -1 ? old : old.slice(0, index);
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: chatKeys.list(userId) });
+      if (mode === "copy") {
+        // The copy inherits the source chat's folder
+        queryClient.invalidateQueries({ queryKey: ["folders"] });
+      }
+    },
+  });
+}
+
 export function useDeleteMessageMutation() {
   const queryClient = useQueryClient();
   const userId = useAuthState((state) => state.user?.id ?? null);

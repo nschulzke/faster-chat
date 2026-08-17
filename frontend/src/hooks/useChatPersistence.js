@@ -2,7 +2,7 @@ import { useChatQuery, useMessagesQuery, useCreateMessageMutation } from "./useC
 
 export function useChatPersistence(chatId) {
   const { data: chat, isLoading: isChatLoading, isError: isChatError } = useChatQuery(chatId);
-  const { data: messages } = useMessagesQuery(chatId);
+  const { data: messages, isLoading: isMessagesLoading } = useMessagesQuery(chatId);
   const createMessageMutation = useCreateMessageMutation();
 
   async function saveUserMessage(
@@ -43,6 +43,7 @@ export function useChatPersistence(chatId) {
     chat,
     messages: messages ?? [],
     isChatLoading,
+    isMessagesLoading,
     isChatError,
     saveUserMessage,
     saveAssistantMessage,
