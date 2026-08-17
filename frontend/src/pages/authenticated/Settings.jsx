@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "preact/compat";
 import { useAuthState } from "@/state/useAuthState";
-import { useReturnToChat } from "@/hooks/useReturnToChat";
+import { useNavigate } from "@tanstack/react-router";
 import { FontSelector } from "@/components/settings/FontSelector";
 import { ThemeSelector } from "@/components/settings/ThemeSelector";
 import { KEYBOARD_SHORTCUTS } from "@faster-chat/shared";
@@ -25,7 +25,7 @@ const KeyboardShortcut = ({ keys, label }) => (
 
 const Settings = () => {
   const { user } = useAuthState();
-  const { returnToChat, isReturning } = useReturnToChat();
+  const navigate = useNavigate();
 
   return (
     <div className="bg-theme-canvas flex h-full flex-col">
@@ -40,11 +40,10 @@ const Settings = () => {
           </div>
           <button
             type="button"
-            onClick={returnToChat}
-            disabled={isReturning}
-            className="text-theme-text hover:text-theme-text border-theme-surface hover:border-theme-surface-strong hover:bg-theme-surface mt-1 flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60">
+            onClick={() => navigate({ to: "/" })}
+            className="text-theme-text hover:text-theme-text border-theme-surface hover:border-theme-surface-strong hover:bg-theme-surface mt-1 flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors">
             <LayoutGrid size={16} />
-            <span>Return to chat</span>
+            <span>Back to chats</span>
           </button>
         </div>
       </div>

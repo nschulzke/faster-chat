@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useReturnToChat } from "@/hooks/useReturnToChat";
+import { useNavigate } from "@tanstack/react-router";
 import { useAuthState } from "@/state/useAuthState";
 import { useFileDragDrop } from "@/hooks/useFileDragDrop";
 import { chatKeys } from "@/hooks/useChatsQuery";
@@ -112,7 +112,7 @@ const ImportInstructions = () => (
 // Main Import page component
 const Import = () => {
   const [selectedFile, setSelectedFile] = useState(null);
-  const { returnToChat, isReturning } = useReturnToChat();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userId = useAuthState((state) => state.user?.id ?? null);
 
@@ -191,11 +191,11 @@ const Import = () => {
           </div>
           <button
             type="button"
-            onClick={returnToChat}
-            disabled={isReturning || isImporting}
+            onClick={() => navigate({ to: "/" })}
+            disabled={isImporting}
             className="text-theme-text hover:text-theme-text border-theme-surface hover:border-theme-surface-strong hover:bg-theme-surface mt-1 flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60">
             <LayoutGrid size={16} />
-            <span>Return to chat</span>
+            <span>Back to chats</span>
           </button>
         </div>
       </div>
@@ -228,7 +228,7 @@ const Import = () => {
                 </p>
               </div>
               <button
-                onClick={returnToChat}
+                onClick={() => navigate({ to: "/" })}
                 className="text-theme-green hover:text-theme-green/80 text-sm font-medium">
                 View Chats →
               </button>

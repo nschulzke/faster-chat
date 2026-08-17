@@ -2,10 +2,11 @@ import { useChatsQuery, useDeleteChatMutation, useCreateChatMutation } from "./u
 import { useChatNavigation } from "./useChatNavigation";
 import { useIsMobile } from "./useIsMobile";
 import { useUiState } from "@/state/useUiState";
-import { useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 export function useSidebarState() {
+  const navigate = useNavigate();
   const { navigateToChat } = useChatNavigation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { data: chats } = useChatsQuery();
@@ -24,15 +25,7 @@ export function useSidebarState() {
     toast.success("Chat deleted");
 
     if (pathname === `/chat/${chatId}`) {
-      const remainingChats = chats?.filter((c) => c.id !== chatId) ?? [];
-      const nextChat = remainingChats[0];
-
-      if (nextChat) {
-        navigateToChat(nextChat.id, { replace: true });
-      } else {
-        const newChat = await createChatMutation.mutateAsync({});
-        navigateToChat(newChat.id, { replace: true });
-      }
+      navigate({ to: "/", replace: true });
     }
   }
 

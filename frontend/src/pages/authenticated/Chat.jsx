@@ -3,8 +3,8 @@ import ErrorBanner from "@/components/ui/ErrorBanner";
 import { useChatNavigation } from "@/hooks/useChatNavigation";
 import { useChatQuery, useCreateChatMutation } from "@/hooks/useChatsQuery";
 import { useAppSettingsQuery } from "@/state/useAppSettings";
-import { useNavigate } from "@tanstack/react-router";
-import { useLayoutEffect, useRef } from "preact/hooks";
+import { Navigate, useNavigate } from "@tanstack/react-router";
+import { useLayoutEffect } from "preact/hooks";
 
 const Chat = ({ chatId }) => {
   const navigate = useNavigate();
@@ -23,20 +23,6 @@ const Chat = ({ chatId }) => {
       document.title = appName;
     };
   }, [chat?.title, appName]);
-  const hasAttemptedRedirect = useRef(false);
-
-  // Auto-redirect to new chat if current chat is missing/deleted
-  if (isError && !hasAttemptedRedirect.current && !createChatMutation.isPending) {
-    hasAttemptedRedirect.current = true;
-    createChatMutation.mutate(
-      {},
-      {
-        onSuccess: (newChat) => {
-          navigateToChat(newChat.id, { replace: true });
-        },
-      }
-    );
-  }
 
   const handleCreateNewChat = () => {
     createChatMutation.mutate(
@@ -49,11 +35,16 @@ const Chat = ({ chatId }) => {
     );
   };
 
+  // The chat is missing or deleted - nothing to show, send them to the chat list
+  if (error?.status === 404) {
+    return <Navigate to="/" replace />;
+  }
+
   if (isLoading || createChatMutation.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-theme-text-muted">
-          {createChatMutation.isPending ? "Redirecting to a new chat..." : "Loading chat..."}
+          {createChatMutation.isPending ? "Creating a new chat..." : "Loading chat..."}
         </div>
       </div>
     );
