@@ -35,6 +35,12 @@ export async function ensureUploadDirectory() {
   await mkdir(UPLOAD_DIR, { recursive: true });
 }
 
+export function resolveStoredFilePath(file) {
+  return file.path
+    ? path.resolve(PROJECT_ROOT, file.path)
+    : path.join(UPLOAD_DIR, file.stored_filename);
+}
+
 export function sanitizeFilename(filename) {
   let sanitized = filename
     .replace(/[/\\]/g, "")
@@ -229,7 +235,7 @@ async function ensureImageDimensions(file, updateFileMetadata) {
     return;
   }
 
-  const filePath = path.join(FILE_CONFIG.UPLOAD_DIR, file.stored_filename);
+  const filePath = resolveStoredFilePath(file);
   const buf = await readFile(filePath);
   const dimensions = validateImageDimensions(buf, getAttachmentMediaType(file), file.filename);
   const meta = { ...(file.meta || {}), ...dimensions };

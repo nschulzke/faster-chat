@@ -1,8 +1,7 @@
 import { readFile } from "fs/promises";
-import path from "path";
 import { FILE_CATEGORIES, MODEL_FEATURES } from "@faster-chat/shared";
 import {
-  FILE_CONFIG,
+  resolveStoredFilePath,
   getAttachmentCategory,
   getAttachmentMediaType,
   formatInlineAttachmentText,
@@ -63,7 +62,7 @@ function inlineTextPart(file, size, text, totalCharCount) {
 }
 
 async function fileToContentPart(file) {
-  const filePath = path.join(FILE_CONFIG.UPLOAD_DIR, file.stored_filename);
+  const filePath = resolveStoredFilePath(file);
   if (file.size > MAX_MODEL_ATTACHMENT_BYTES) {
     throw new Error(`Attachment ${file.filename} exceeds the per-file model limit`);
   }
