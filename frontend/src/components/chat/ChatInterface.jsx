@@ -15,9 +15,11 @@ import { usePreferredModel } from "@/hooks/usePreferredModel";
 import { useUiState } from "@/state/useUiState";
 
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { toast, Toaster } from "sonner";
 import EditMessageDialog from "./EditMessageDialog";
 import InputArea from "./InputArea";
+import SearchHighlightBar from "./SearchHighlightBar";
 import MessageList from "./MessageList";
 import ModelSelector from "./ModelSelector";
 import VoiceSettings from "./VoiceSettings";
@@ -25,6 +27,8 @@ import VoiceStatusIndicator from "./VoiceStatusIndicator";
 
 const ChatInterface = ({ chatId }) => {
   const { navigateToChat } = useChatNavigation();
+  const navigate = useNavigate();
+  const searchParams = useSearch({ strict: false });
   const createChatMutation = useCreateChatMutation();
   const imageMode = useUiState((state) => state.imageMode);
   const preferredImageModel = useUiState((state) => state.preferredImageModel);
@@ -33,6 +37,7 @@ const ChatInterface = ({ chatId }) => {
   const webSearchEnabled = useUiState((state) => state.webSearchEnabled);
   const toggleWebSearch = useUiState((state) => state.toggleWebSearch);
   const setWebSearchEnabled = useUiState((state) => state.setWebSearchEnabled);
+  const setSearchOpen = useUiState((state) => state.setSearchOpen);
   const memoryEnabled = useChatMemoryEnabled(chatId);
 
   const {
@@ -170,10 +175,22 @@ const ChatInterface = ({ chatId }) => {
 
   usePendingResubmit({ chatId, isMessagesLoading, submitMessage });
 
+  // A search jump owns the scroll position until the user dismisses or replies.
+  function clearSearchParams() {
+    if (searchParams.q || searchParams.m) {
+      navigate({ to: ".", search: {}, replace: true });
+    }
+  }
+
+  function handleSubmitWithSearchCleared(e) {
+    clearSearchParams();
+    handleSubmit(e);
+  }
+
   useLayoutEffect(() => {
-    if (!scrollContainerRef.current || !autoScroll) return;
+    if (!scrollContainerRef.current || !autoScroll || searchParams.m) return;
     scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-  }, [messages.length, autoScroll]);
+  }, [messages.length, autoScroll, searchParams.m]);
 
   return (
     <div className="bg-theme-canvas relative z-0 flex h-full flex-1 flex-col">
@@ -182,7 +199,7 @@ const ChatInterface = ({ chatId }) => {
       <div className="relative flex-1">
         <div className="sticky top-0 z-10 flex items-center justify-between px-2 py-3 md:px-8 md:py-6">
           <div className="flex items-center gap-3">
-            <SidebarToolbar onNewChat={handleNewChat} onSearch={() => {}} />
+            <SidebarToolbar onNewChat={handleNewChat} onSearch={() => setSearchOpen(true)} />
           </div>
 
           {imageMode ? (
@@ -204,6 +221,8 @@ const ChatInterface = ({ chatId }) => {
             <UserMenu />
           </ToolbarGroup>
         </div>
+
+        <SearchHighlightBar containerRef={scrollContainerRef} messageCount={messages.length} />
 
         <div
           ref={scrollContainerRef}
@@ -235,7 +254,7 @@ const ChatInterface = ({ chatId }) => {
             <InputArea
               input={input}
               handleInputChange={handleInputChange}
-              handleSubmit={handleSubmit}
+              handleSubmit={handleSubmitWithSearchCleared}
               voiceControls={voice}
               disabled={isLoading || isGenerating}
               onImageSubmit={handleImageSubmit}

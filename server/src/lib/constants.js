@@ -14,6 +14,7 @@ export const ENDPOINT_RATE_LIMITS = {
   IMAGE_GEN: { windowMs: 60 * 1000, maxRequests: 5 }, // 5/min per user
   FILE_UPLOAD: { windowMs: 60 * 1000, maxRequests: 10 }, // 10/min per user
   OLLAMA_PULL: { windowMs: 5 * 60 * 1000, maxRequests: 3 }, // 3/5min per user
+  SEARCH: { windowMs: 60 * 1000, maxRequests: 60 }, // 60/min per user
 };
 
 /**

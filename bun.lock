@@ -27,7 +27,6 @@
         "@tanstack/react-virtual": "^3.13.23",
         "ai": "^6.0.144",
         "clsx": "^2.1.1",
-        "fuzzysort": "^3.1.0",
         "katex": "^0.16.44",
         "lucide-preact": "^0.554.0",
         "nanoid": "^5.1.7",

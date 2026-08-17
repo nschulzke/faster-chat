@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "@preact/compat";
+import { useState, useRef } from "@preact/compat";
 import { useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useSidebarState } from "@/hooks/useSidebarState";
@@ -7,9 +7,8 @@ import { useUiState } from "@/state/useUiState";
 import { useUpdateChatMutation } from "@/hooks/useChatsQuery";
 import { useChatActions } from "@/hooks/useChatActions";
 import { useFolders } from "@/hooks/useFolders";
-import { searchWithHighlights } from "@/lib/search";
 import { toast } from "sonner";
-import { LOGO_ICON_NAMES, UI_CONSTANTS, FOLDER_CONSTANTS } from "@faster-chat/shared";
+import { LOGO_ICON_NAMES, FOLDER_CONSTANTS } from "@faster-chat/shared";
 import * as LucideIcons from "lucide-preact";
 import {
   ChevronDown,
@@ -69,19 +68,19 @@ const createVirtualizedListWithHeaders = (chats) => {
     older: [],
   };
 
-  chats.forEach((chatItem) => {
-    const chatDate = new Date(chatItem.item.updatedAt || chatItem.item.createdAt);
+  chats.forEach((chat) => {
+    const chatDate = new Date(chat.updatedAt || chat.createdAt);
 
     if (chatDate >= today) {
-      groups.today.push(chatItem);
+      groups.today.push(chat);
     } else if (chatDate >= yesterday) {
-      groups.yesterday.push(chatItem);
+      groups.yesterday.push(chat);
     } else if (chatDate >= weekAgo) {
-      groups.previousWeek.push(chatItem);
+      groups.previousWeek.push(chat);
     } else if (chatDate >= monthAgo) {
-      groups.previousMonth.push(chatItem);
+      groups.previousMonth.push(chat);
     } else {
-      groups.older.push(chatItem);
+      groups.older.push(chat);
     }
   });
 
@@ -90,8 +89,8 @@ const createVirtualizedListWithHeaders = (chats) => {
   DATE_GROUP_ORDER.forEach((groupKey) => {
     if (groups[groupKey].length > 0) {
       items.push({ type: "header", label: DATE_GROUP_LABELS[groupKey], key: groupKey });
-      groups[groupKey].forEach((chatItem) => {
-        items.push({ type: "chat", ...chatItem });
+      groups[groupKey].forEach((chat) => {
+        items.push({ type: "chat", chat });
       });
     }
   });
@@ -102,7 +101,6 @@ const createVirtualizedListWithHeaders = (chats) => {
 // Chat item component - extracted for reuse in pinned and recent sections
 const ChatItem = ({
   chat,
-  highlighted,
   isActive,
   isRenaming,
   renameValue,
@@ -143,11 +141,6 @@ const ChatItem = ({
           autoFocus
           className="bg-theme-surface text-theme-text focus:ring-theme-primary flex-1 rounded px-2 py-0.5 text-sm outline-none focus:ring-1"
           onClick={(e) => e.stopPropagation()}
-        />
-      ) : highlighted ? (
-        <span
-          className="[&_mark]:bg-theme-yellow/30 [&_mark]:text-theme-text flex-1 truncate pr-12 text-sm [&_mark]:rounded-sm"
-          dangerouslySetInnerHTML={{ __html: highlighted }}
         />
       ) : (
         <span className="flex-1 truncate pr-12 text-sm">{chat.title || "New Chat"}</span>
@@ -263,18 +256,16 @@ const VirtualizedChatList = ({
   onRenameChange,
   onRenameSubmit,
   onRenameKeyDown,
-  showDateHeaders = false,
 }) => {
   const parentRef = useRef(null);
 
-  // Create list with headers if enabled
-  const listItems = showDateHeaders ? createVirtualizedListWithHeaders(chats) : chats;
+  const listItems = createVirtualizedListWithHeaders(chats);
 
   const virtualizer = useVirtualizer({
     count: listItems.length,
     getScrollElement: () => parentRef.current,
     estimateSize: (index) => {
-      if (showDateHeaders && listItems[index]?.type === "header") {
+      if (listItems[index]?.type === "header") {
         return DATE_HEADER_HEIGHT;
       }
       return CHAT_ITEM_HEIGHT;
@@ -316,7 +307,7 @@ const VirtualizedChatList = ({
           }
 
           // Render chat item
-          const { item: chat, highlighted } = showDateHeaders ? listItem : listItem;
+          const chat = listItem.chat;
           return (
             <div
               key={chat.id}
@@ -330,7 +321,6 @@ const VirtualizedChatList = ({
               }}>
               <ChatItem
                 chat={chat}
-                highlighted={highlighted}
                 isActive={pathname === `/chat/${chat.id}`}
                 isRenaming={renaming?.chatId === chat.id}
                 renameValue={renaming?.value || ""}
@@ -353,28 +343,16 @@ const VirtualizedChatList = ({
 
 const Sidebar = () => {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState("");
   const [contextMenu, setContextMenu] = useState(null); // { chat, position: {x, y} }
   const [renaming, setRenaming] = useState(null); // null or { chatId, value }
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [movingChat, setMovingChat] = useState(null); // Chat being moved to folder
   const [foldersExpanded, setFoldersExpanded] = useState(false);
-  const searchInputRef = useRef(null);
 
   const MAX_VISIBLE_FOLDERS = 6;
 
   // Folders hook
   const { folders, createFolder, isCreating } = useFolders();
-
-  // Listen for focus-sidebar-search event (triggered by Ctrl+K)
-  useEffect(() => {
-    const handleFocusSearch = () => {
-      // Small delay to allow sidebar to expand first
-      setTimeout(() => searchInputRef.current?.focus(), UI_CONSTANTS.SIDEBAR_FOCUS_DELAY_MS);
-    };
-    window.addEventListener("focus-sidebar-search", handleFocusSearch);
-    return () => window.removeEventListener("focus-sidebar-search", handleFocusSearch);
-  }, []);
 
   const {
     chats,
@@ -393,6 +371,7 @@ const Sidebar = () => {
 
   const sidebarCollapsed = useUiState((state) => state.sidebarCollapsed);
   const toggleSidebarCollapse = useUiState((state) => state.toggleSidebarCollapse);
+  const setSearchOpen = useUiState((state) => state.setSearchOpen);
   const { data: settings } = useAppSettingsQuery();
   const appName = settings?.appName;
   const logoIcon = settings?.logoIcon;
@@ -401,12 +380,9 @@ const Sidebar = () => {
   const forceExpanded = isUtilityRoute && !isMobile;
   const effectiveCollapsed = forceExpanded ? false : sidebarCollapsed;
 
-  // Derive filtered chats from search query
-  const filteredChats = searchWithHighlights(searchQuery, chats ?? [], "title");
-
   // Separate pinned and unpinned chats
-  const pinnedChats = filteredChats.filter(({ item }) => item.pinnedAt);
-  const recentChats = filteredChats.filter(({ item }) => !item.pinnedAt);
+  const pinnedChats = (chats ?? []).filter((chat) => chat.pinnedAt);
+  const recentChats = (chats ?? []).filter((chat) => !chat.pinnedAt);
 
   const handleDeleteRequest = (e, chatId) => {
     e.preventDefault();
@@ -557,30 +533,20 @@ const Sidebar = () => {
           </button>
 
           {/* Search */}
-          <div className="group relative">
-            <div className="relative">
-              <Search
-                className="text-theme-text-muted group-focus-within:text-theme-accent absolute top-1/2 left-3 -translate-y-1/2 transform transition-colors"
-                size={16}
-              />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search chats..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="hover:border-theme-surface-strong focus:border-theme-surface-strong focus:bg-theme-surface text-theme-text placeholder-theme-text-muted w-full rounded-lg border border-transparent bg-transparent py-1.5 pr-8 pl-9 text-sm transition-all focus:outline-none"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="text-theme-text-muted hover:text-theme-text absolute top-1/2 right-2 -translate-y-1/2 transform"
-                  title="Clear search">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            title="Search chats"
+            className="group hover:border-theme-surface-strong text-theme-text-muted hover:text-theme-text ease-snappy flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-1.5 text-left text-sm transition-colors duration-75">
+            <Search
+              size={16}
+              className="group-hover:text-theme-accent flex-shrink-0 transition-colors"
+            />
+            <span className="flex-1">Search chats...</span>
+            <kbd className="border-theme-border rounded border px-1.5 py-0.5 text-[10px]">
+              Ctrl K
+            </kbd>
+          </button>
         </div>
 
         {/* Divider */}
@@ -589,75 +555,72 @@ const Sidebar = () => {
         {/* Folders, Pinned, and Headers */}
         <div className="shrink-0 space-y-1 px-4">
           {/* Folders Section */}
-          {!searchQuery && (
-            <div className="mb-2">
-              <div className="flex items-center justify-between px-2 py-2">
-                <span className="text-theme-overlay text-xs font-bold tracking-widest uppercase opacity-70">
-                  Folders
-                </span>
-                <button
-                  onClick={() => setShowNewFolder(true)}
-                  className="text-theme-text-muted hover:text-theme-text ease-snappy rounded p-1 transition-colors hover:bg-white/5"
-                  title="New Folder">
-                  <FolderPlus size={14} />
-                </button>
-              </div>
-
-              {/* New folder input - isolated component to prevent parent re-renders */}
-              {showNewFolder && (
-                <NewFolderInput
-                  onCreate={handleCreateFolder}
-                  onCancel={() => setShowNewFolder(false)}
-                  isCreating={isCreating}
-                />
-              )}
-
-              {/* Folder list */}
-              {folders.length > 0 ? (
-                <div className="space-y-0.5">
-                  {(foldersExpanded ? folders : folders.slice(0, MAX_VISIBLE_FOLDERS)).map(
-                    (folder) => (
-                      <FolderItem
-                        key={folder.id}
-                        folder={folder}
-                        isActive={pathname === `/folder/${folder.id}`}
-                        onClick={() => handleFolderClick(folder.id)}
-                      />
-                    )
-                  )}
-                  {folders.length > MAX_VISIBLE_FOLDERS && (
-                    <button
-                      onClick={() => setFoldersExpanded(!foldersExpanded)}
-                      className="text-theme-text-muted hover:text-theme-text ease-snappy flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors hover:bg-white/5">
-                      <ChevronDown
-                        size={14}
-                        className={`ease-snappy transition-transform ${foldersExpanded ? "rotate-180" : ""}`}
-                      />
-                      {foldersExpanded
-                        ? "Show less"
-                        : `Show ${folders.length - MAX_VISIBLE_FOLDERS} more`}
-                    </button>
-                  )}
-                </div>
-              ) : !showNewFolder ? (
-                <div className="text-theme-text-muted px-3 py-2 text-xs italic">No folders yet</div>
-              ) : null}
-
-              <div className="bg-theme-surface mx-2 my-3 h-px" />
+          <div className="mb-2">
+            <div className="flex items-center justify-between px-2 py-2">
+              <span className="text-theme-overlay text-xs font-bold tracking-widest uppercase opacity-70">
+                Folders
+              </span>
+              <button
+                onClick={() => setShowNewFolder(true)}
+                className="text-theme-text-muted hover:text-theme-text ease-snappy rounded p-1 transition-colors hover:bg-white/5"
+                title="New Folder">
+                <FolderPlus size={14} />
+              </button>
             </div>
-          )}
+
+            {/* New folder input - isolated component to prevent parent re-renders */}
+            {showNewFolder && (
+              <NewFolderInput
+                onCreate={handleCreateFolder}
+                onCancel={() => setShowNewFolder(false)}
+                isCreating={isCreating}
+              />
+            )}
+
+            {/* Folder list */}
+            {folders.length > 0 ? (
+              <div className="space-y-0.5">
+                {(foldersExpanded ? folders : folders.slice(0, MAX_VISIBLE_FOLDERS)).map(
+                  (folder) => (
+                    <FolderItem
+                      key={folder.id}
+                      folder={folder}
+                      isActive={pathname === `/folder/${folder.id}`}
+                      onClick={() => handleFolderClick(folder.id)}
+                    />
+                  )
+                )}
+                {folders.length > MAX_VISIBLE_FOLDERS && (
+                  <button
+                    onClick={() => setFoldersExpanded(!foldersExpanded)}
+                    className="text-theme-text-muted hover:text-theme-text ease-snappy flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors hover:bg-white/5">
+                    <ChevronDown
+                      size={14}
+                      className={`ease-snappy transition-transform ${foldersExpanded ? "rotate-180" : ""}`}
+                    />
+                    {foldersExpanded
+                      ? "Show less"
+                      : `Show ${folders.length - MAX_VISIBLE_FOLDERS} more`}
+                  </button>
+                )}
+              </div>
+            ) : !showNewFolder ? (
+              <div className="text-theme-text-muted px-3 py-2 text-xs italic">No folders yet</div>
+            ) : null}
+
+            <div className="bg-theme-surface mx-2 my-3 h-px" />
+          </div>
 
           {/* Pinned Section */}
-          {pinnedChats.length > 0 && !searchQuery && (
+          {pinnedChats.length > 0 && (
             <>
               <div className="text-theme-overlay px-2 py-2 text-xs font-bold tracking-widest uppercase opacity-70">
                 Pinned
               </div>
-              {pinnedChats.map(({ item: chat, highlighted }) => (
+              {pinnedChats.map((chat) => (
                 <ChatItem
                   key={chat.id}
                   chat={chat}
-                  highlighted={highlighted}
                   isActive={pathname === `/chat/${chat.id}`}
                   isRenaming={renaming?.chatId === chat.id}
                   renameValue={renaming?.value || ""}
@@ -677,25 +640,18 @@ const Sidebar = () => {
             </>
           )}
 
-          {/* Search Results Header */}
-          {searchQuery && (
-            <div className="text-theme-overlay px-2 py-2 text-xs font-bold tracking-widest uppercase opacity-70">
-              Results ({filteredChats.length})
-            </div>
-          )}
-
           {recentChats.length === 0 && pinnedChats.length === 0 && (
             <div className="text-theme-overlay bg-theme-surface/20 border-theme-surface/30 mx-2 rounded-lg border border-dashed py-8 text-center text-sm italic">
-              {searchQuery ? "No matching chats found." : "No history found."}
+              No history found.
             </div>
           )}
         </div>
 
         {/* Virtualized Chat List with date headers */}
-        {(searchQuery ? filteredChats : recentChats).length > 0 && (
+        {recentChats.length > 0 && (
           <div className="flex min-h-0 flex-1 flex-col px-4">
             <VirtualizedChatList
-              chats={searchQuery ? filteredChats : recentChats}
+              chats={recentChats}
               pathname={pathname}
               renaming={renaming}
               onSelect={handleSelectChat}
@@ -706,7 +662,6 @@ const Sidebar = () => {
               onRenameChange={(value) => setRenaming((prev) => (prev ? { ...prev, value } : null))}
               onRenameSubmit={handleRenameSubmit}
               onRenameKeyDown={handleRenameKeyDown}
-              showDateHeaders={!searchQuery}
             />
           </div>
         )}

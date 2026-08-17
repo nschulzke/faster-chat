@@ -164,3 +164,24 @@
     line-height: 1.7;
   }
 }
+
+/* Search matches painted by useTextHighlight via the CSS Custom Highlight API */
+::highlight(chat-search) {
+  background-color: color-mix(in srgb, var(--theme-yellow, #facc15) 35%, transparent);
+  color: var(--theme-text);
+}
+
+/* Flash applied to the message a search result pointed at */
+.search-flash {
+  animation: search-flash 1.2s var(--ease-snappy, ease-out);
+}
+
+@keyframes search-flash {
+  0%,
+  40% {
+    background-color: color-mix(in srgb, var(--theme-primary, #6366f1) 18%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}

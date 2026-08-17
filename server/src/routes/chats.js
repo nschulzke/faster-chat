@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { streamText } from "ai";
 import { dbUtils } from "../lib/db.js";
+import { toMatchExpr } from "../lib/db/search.js";
 import { ensureSession } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimiter.js";
 import { HTTP_STATUS } from "../lib/httpStatus.js";
@@ -52,6 +53,8 @@ const PatchChatSchema = z.object({
 const RewindSchema = z.object({
   mode: z.enum(["replace", "copy"]),
 });
+
+const SEARCH_MAX_LIMIT = 50;
 
 function truncateToTitle(text) {
   if (text.length <= UI_CONSTANTS.CHAT_TITLE_MAX_LENGTH) {
@@ -122,6 +125,26 @@ chatsRouter.post("/", async (c) => {
     },
     HTTP_STATUS.CREATED
   );
+});
+
+// Registered before the /:chatId middleware so "search" is not resolved as a chat id.
+chatsRouter.get("/search", createRateLimiter(ENDPOINT_RATE_LIMITS.SEARCH), async (c) => {
+  const user = c.get("user");
+  const query = c.req.query("q") ?? "";
+  const limit = Math.min(
+    Math.max(parseInt(c.req.query("limit") || "20", 10) || 20, 1),
+    SEARCH_MAX_LIMIT
+  );
+  const offset = Math.max(parseInt(c.req.query("offset") || "0", 10) || 0, 0);
+  const includeArchived = c.req.query("includeArchived") === "true";
+
+  const { results, hasMore } = dbUtils.searchChats(user.id, toMatchExpr(query), {
+    limit,
+    offset,
+    includeArchived,
+  });
+
+  return c.json({ query, results, hasMore, limit, offset });
 });
 
 async function loadChat(c, next) {

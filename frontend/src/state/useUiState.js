@@ -14,6 +14,7 @@ export const useUiState = create(
       imageMode: false,
       webSearchEnabled: false,
       pendingResubmit: null,
+      searchOpen: false,
 
       setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -29,6 +30,7 @@ export const useUiState = create(
       toggleWebSearch: () => set((s) => ({ webSearchEnabled: !s.webSearchEnabled })),
       setPendingResubmit: (pending) => set({ pendingResubmit: pending }),
       clearPendingResubmit: () => set({ pendingResubmit: null }),
+      setSearchOpen: (isOpen) => set({ searchOpen: isOpen }),
     }),
     {
       name: "ui-state",

@@ -10,6 +10,7 @@ import { createMemoryUtils } from "./db/memory.js";
 import { createModelUtils } from "./db/models.js";
 import { migrations } from "./db/migrations/index.js";
 import { createProviderUtils } from "./db/providers.js";
+import { createSearchUtils } from "./db/search.js";
 import { createSettingUtils } from "./db/settings.js";
 import { createUserUtils } from "./db/users.js";
 
@@ -78,6 +79,7 @@ Object.assign(
   createModelUtils({ db, buildUpdateFields }),
   createFileUtils({ db }),
   createChatUtils({ db }),
+  createSearchUtils({ db }),
   createFolderUtils({ db, buildUpdateFields }),
   createSettingUtils({ db, encryptApiKey, decryptApiKey }),
   createAuditUtils({ db }),

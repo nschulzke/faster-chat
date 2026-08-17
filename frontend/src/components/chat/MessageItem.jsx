@@ -66,7 +66,9 @@ const MessageItem = memo(({ message, onStop, onRegenerate, onEdit }) => {
       ) || [];
 
   return (
-    <div className={`group mb-8 flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
+    <div
+      data-message-id={message.id}
+      className={`group mb-8 flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
       <div
         className={`flex max-w-[85%] gap-4 md:max-w-[85%] ${isEditing ? "w-full" : ""} ${isUser ? "flex-row-reverse" : "flex-row"}`}>
         {!isUser && <ModelAvatar modelId={modelName} />}

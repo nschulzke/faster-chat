@@ -16,8 +16,8 @@ export function useKeyboardShortcuts() {
 
   const toggleSidebar = useUiState((state) => state.toggleSidebar);
   const toggleSidebarCollapse = useUiState((state) => state.toggleSidebarCollapse);
-  const setSidebarOpen = useUiState((state) => state.setSidebarOpen);
   const sidebarCollapsed = useUiState((state) => state.sidebarCollapsed);
+  const setSearchOpen = useUiState((state) => state.setSearchOpen);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -44,15 +44,10 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Focus search - Ctrl+K
+      // Open search - Ctrl+K
       if (getShortcut("focusSearch").check(e)) {
         e.preventDefault();
-        if (isMobile) {
-          setSidebarOpen(true);
-        } else if (sidebarCollapsed) {
-          toggleSidebarCollapse();
-        }
-        window.dispatchEvent(new CustomEvent("focus-sidebar-search"));
+        setSearchOpen(true);
         return;
       }
     };
@@ -64,7 +59,7 @@ export function useKeyboardShortcuts() {
     sidebarCollapsed,
     toggleSidebar,
     toggleSidebarCollapse,
-    setSidebarOpen,
+    setSearchOpen,
     navigateToChat,
     createChatMutation,
   ]);

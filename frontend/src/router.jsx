@@ -3,6 +3,8 @@ import Sidebar from "@/components/layout/Sidebar";
 import { useAuthState } from "@/state/useAuthState";
 import { IndexRouteGuard } from "@/components/layout/IndexRouteGuard";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import SearchPalette from "@/components/search/SearchPalette";
+import { useUiState } from "@/state/useUiState";
 import {
   createRootRoute,
   createRoute,
@@ -32,6 +34,7 @@ const LoadingSpinner = () => {
 // Protected Layout Component - handles auth checks and sidebar layout
 const ProtectedLayout = () => {
   const { user, isLoading, checkSession } = useAuthState();
+  const searchOpen = useUiState((state) => state.searchOpen);
 
   // Global keyboard shortcuts (Ctrl+B, Ctrl+Shift+O, Ctrl+K)
   useKeyboardShortcuts();
@@ -53,6 +56,7 @@ const ProtectedLayout = () => {
       <Suspense fallback={<LoadingSpinner />}>
         <Outlet />
       </Suspense>
+      {searchOpen && <SearchPalette />}
     </MainLayout>
   );
 };
@@ -90,6 +94,10 @@ const indexRoute = createRoute({
 const chatRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/chat/$chatId",
+  validateSearch: (search) => ({
+    q: typeof search?.q === "string" && search.q ? search.q : undefined,
+    m: typeof search?.m === "string" && search.m ? search.m : undefined,
+  }),
   component: () => {
     const { chatId } = chatRoute.useParams();
     return <Chat chatId={chatId} />;

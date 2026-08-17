@@ -10,6 +10,7 @@ export const chatKeys = {
   details: (userId) => [...chatKeys.all(userId), "detail"],
   detail: (userId, id) => [...chatKeys.details(userId), id],
   messages: (userId, chatId) => [...chatKeys.detail(userId, chatId), "messages"],
+  search: (userId, query) => [...chatKeys.all(userId), "search", query],
 };
 
 export const folderKeys = {

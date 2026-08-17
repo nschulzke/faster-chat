@@ -35,6 +35,10 @@ export const chatsClient = {
     return data.chats;
   },
 
+  async searchChats(query, { signal } = {}) {
+    return chatsFetch(`/search?q=${encodeURIComponent(query)}`, { signal });
+  },
+
   async getChat(chatId) {
     return chatsFetch(`/${chatId}`);
   },
