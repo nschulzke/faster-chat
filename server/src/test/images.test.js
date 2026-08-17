@@ -5,6 +5,8 @@ let generateImageForProviderImpl = async () => ({
   mimeType: "image/png",
 });
 
+const actualImageProviderFactory = { ...(await import("../lib/imageProviderFactory.js")) };
+
 mock.module("../lib/imageProviderFactory.js", () => ({
   generateImageForProvider: (...args) => generateImageForProviderImpl(...args),
 }));
@@ -30,6 +32,8 @@ describe("image routes", () => {
   });
 
   afterAll(() => {
+    mock.module("../lib/imageProviderFactory.js", () => actualImageProviderFactory);
+
     if (originalReplicateApiKey === undefined) {
       delete process.env.REPLICATE_API_KEY;
     } else {

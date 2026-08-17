@@ -127,6 +127,10 @@ async function generateWithOpenRouter(apiKey, options) {
     return imageUrlToBuffer(imageCandidate.url);
   }
 
+  if (imageCandidate.image_url?.url) {
+    return imageUrlToBuffer(imageCandidate.image_url.url);
+  }
+
   console.error("Unknown image data format:", imageCandidate);
   throw new Error("Unknown image format from OpenRouter");
 }
