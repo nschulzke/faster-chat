@@ -95,7 +95,6 @@ const InputArea = ({
     // Image mode: call onImageSubmit instead of normal handleSubmit
     if (imageMode && onImageSubmit) {
       onImageSubmit(input.trim());
-      setImageMode(false); // Auto-reset after send
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }

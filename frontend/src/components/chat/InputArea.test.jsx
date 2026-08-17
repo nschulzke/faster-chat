@@ -12,16 +12,15 @@ vi.mock("@/hooks/useFileUploader", () => ({
 }));
 
 // Mock useUiState
+const uiState = vi.hoisted(() => ({
+  imageMode: false,
+  toggleImageMode: vi.fn(),
+  setImageMode: vi.fn(),
+  setWebSearchEnabled: vi.fn(),
+}));
+
 vi.mock("@/state/useUiState", () => ({
-  useUiState: (selector) => {
-    const state = {
-      imageMode: false,
-      toggleImageMode: vi.fn(),
-      setImageMode: vi.fn(),
-      setWebSearchEnabled: vi.fn(),
-    };
-    return selector(state);
-  },
+  useUiState: (selector) => selector(uiState),
 }));
 
 // Mock useFileDragDrop to expose real behavior for integration testing
@@ -71,6 +70,20 @@ describe("InputArea", () => {
     vi.clearAllMocks();
     mockDragActive = false;
     capturedOnFileSelect = null;
+    uiState.imageMode = false;
+  });
+
+  test("stays in image mode after submitting a generation", () => {
+    uiState.imageMode = true;
+    const onImageSubmit = vi.fn();
+    render(
+      <InputArea {...defaultProps} input="a dog on a bicycle" onImageSubmit={onImageSubmit} />
+    );
+
+    fireEvent.click(screen.getByLabelText("Send message"));
+
+    expect(onImageSubmit).toHaveBeenCalledWith("a dog on a bicycle");
+    expect(uiState.setImageMode).not.toHaveBeenCalled();
   });
 
   test("renders the bordered wrapper with base classes", () => {
