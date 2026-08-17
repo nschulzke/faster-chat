@@ -464,12 +464,10 @@ const Sidebar = () => {
     return effectiveCollapsed ? "-translate-x-full" : "translate-x-0";
   };
 
-  const handleLogoClick = async () => {
-    if (isUtilityRoute || effectiveCollapsed) {
-      await handleNewChat();
-      if (!isMobile && sidebarCollapsed) {
-        toggleSidebarCollapse();
-      }
+  const handleLogoClick = () => {
+    navigate({ to: "/" });
+    if (isMobile) {
+      setIsSidebarOpen(false);
     }
   };
 
@@ -491,9 +489,7 @@ const Sidebar = () => {
           <div
             className="flex cursor-pointer items-center gap-2"
             onClick={handleLogoClick}
-            title={
-              isUtilityRoute ? "Return to chat" : effectiveCollapsed ? "Expand sidebar" : undefined
-            }>
+            title="All Chats">
             <div className="bg-theme-primary flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg shadow-lg">
               <LogoIcon className="h-5 w-5 text-white" />
             </div>
