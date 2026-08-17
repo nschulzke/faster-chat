@@ -68,17 +68,20 @@ const MessageItem = memo(({ message, onStop, onRegenerate, onEdit }) => {
   return (
     <div className={`group mb-8 flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`flex max-w-[85%] gap-4 md:max-w-[85%] ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+        className={`flex max-w-[85%] gap-4 md:max-w-[85%] ${isEditing ? "w-full" : ""} ${isUser ? "flex-row-reverse" : "flex-row"}`}>
         {!isUser && <ModelAvatar modelId={modelName} />}
 
-        <div className={`relative flex min-w-0 flex-col ${isUser ? "items-end" : "items-start"}`}>
+        <div
+          className={`relative flex min-w-0 flex-col ${isEditing ? "w-full" : ""} ${isUser ? "items-end" : "items-start"}`}>
           <div
-            className={`relative overflow-hidden p-5 leading-relaxed transition-all duration-300 ease-in-out ${
-              isUser
-                ? "bg-theme-surface-stronger text-theme-text rounded-tl-lg rounded-br-lg rounded-bl-lg bg-gradient-to-br pt-5"
-                : "text-theme-text pt-0"
+            className={`relative overflow-hidden leading-relaxed transition-all duration-300 ease-in-out ${
+              isEditing
+                ? "text-theme-text w-full p-0"
+                : isUser
+                  ? "bg-theme-surface-stronger text-theme-text rounded-tl-lg rounded-br-lg rounded-bl-lg bg-gradient-to-br p-5 pt-5"
+                  : "text-theme-text p-5 pt-0"
             } `}
-            style={{ boxShadow: "var(--shadow-depth-sm)" }}>
+            style={isEditing ? undefined : { boxShadow: "var(--shadow-depth-sm)" }}>
             {!isUser && modelName && (
               <div className="mb-4">
                 <span className="text-theme-text text-lg font-bold">{modelName}</span>
