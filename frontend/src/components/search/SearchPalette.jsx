@@ -27,6 +27,7 @@ const SearchPalette = () => {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef(null);
+  const inputRef = useRef(null);
 
   const { results, hasMore, isSearching, isTooShort } = useChatSearchQuery(query);
 
@@ -48,9 +49,7 @@ const SearchPalette = () => {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Escape") {
-      close();
-    } else if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveIndex(rows.length ? (active + 1) % rows.length : 0);
     } else if (e.key === "ArrowUp") {
@@ -61,6 +60,23 @@ const SearchPalette = () => {
       open(rows[active]);
     }
   };
+
+  // The click that opened the palette wins over autoFocus, so claim focus explicitly.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Escape listens on the document: focus may still be on whatever opened the palette.
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [setSearchOpen]);
 
   useEffect(() => {
     listRef.current
@@ -126,8 +142,8 @@ const SearchPalette = () => {
         <div className="border-theme-border flex items-center gap-3 border-b px-4 py-3">
           <Search size={18} className="text-theme-text-muted flex-shrink-0" />
           <input
+            ref={inputRef}
             type="text"
-            autoFocus
             placeholder="Search chats and messages..."
             value={query}
             onChange={(e) => {
