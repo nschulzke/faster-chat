@@ -11,10 +11,8 @@ import { useCreateChatMutation, useCreateMessageMutation } from "@/hooks/useChat
 import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { useEditResubmit } from "@/hooks/useEditResubmit";
 import { usePendingResubmit } from "@/hooks/usePendingResubmit";
+import { usePreferredModel } from "@/hooks/usePreferredModel";
 import { useUiState } from "@/state/useUiState";
-import { providersClient } from "@/lib/providersClient";
-import { CACHE_DURATIONS } from "@faster-chat/shared";
-import { useQuery } from "@tanstack/react-query";
 
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { toast, Toaster } from "sonner";
@@ -28,8 +26,6 @@ import VoiceStatusIndicator from "./VoiceStatusIndicator";
 const ChatInterface = ({ chatId }) => {
   const { navigateToChat } = useChatNavigation();
   const createChatMutation = useCreateChatMutation();
-  const preferredModel = useUiState((state) => state.preferredModel);
-  const setPreferredModel = useUiState((state) => state.setPreferredModel);
   const imageMode = useUiState((state) => state.imageMode);
   const preferredImageModel = useUiState((state) => state.preferredImageModel);
   const setPreferredImageModel = useUiState((state) => state.setPreferredImageModel);
@@ -39,19 +35,18 @@ const ChatInterface = ({ chatId }) => {
   const setWebSearchEnabled = useUiState((state) => state.setWebSearchEnabled);
   const memoryEnabled = useChatMemoryEnabled(chatId);
 
-  const { data: modelsData } = useQuery({
-    queryKey: ["models", "text"],
-    queryFn: () => providersClient.getEnabledModelsByType("text"),
-    staleTime: CACHE_DURATIONS.IMAGE_MODELS,
-  });
-
-  const currentModelData = (modelsData?.models || []).find((m) => m.model_id === preferredModel);
+  const {
+    modelId: preferredModel,
+    model: currentModelData,
+    models,
+    setModel,
+  } = usePreferredModel();
   const modelSupportsTools = !!currentModelData?.metadata?.supports_tools;
 
   const handleModelChange = (modelId) => {
-    setPreferredModel(modelId);
+    setModel(modelId);
     clearError();
-    const newModel = (modelsData?.models || []).find((m) => m.model_id === modelId);
+    const newModel = models.find((m) => m.model_id === modelId);
     if (!newModel?.metadata?.supports_tools) {
       setWebSearchEnabled(false);
     }

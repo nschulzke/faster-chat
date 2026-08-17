@@ -6,7 +6,8 @@ export const useUiState = create(
     (set) => ({
       sidebarOpen: true,
       sidebarCollapsed: false,
-      preferredModel: "claude-sonnet-4-5",
+      // No shipped guess: the enabled model marked default wins until the user picks
+      preferredModel: null,
       preferredImageModel: null,
       theme: "dark",
       autoScroll: true,
