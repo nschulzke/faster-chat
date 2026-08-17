@@ -5,14 +5,14 @@ import {
 } from "./imageGeneration.js";
 
 export async function generateImageForProvider(providerName, apiKey, options) {
-  const { prompt, aspectRatio, model } = options;
+  const { prompt, aspectRatio, model, history, referenceImages } = options;
 
   switch (providerName) {
     case "replicate":
       return generateWithReplicate(apiKey, { prompt, aspectRatio, model });
 
     case "openrouter":
-      return generateWithOpenRouter(apiKey, { prompt, model });
+      return generateWithOpenRouter(apiKey, { prompt, model, history, referenceImages });
 
     case "openai":
       return generateWithOpenAI(apiKey, { prompt });
@@ -61,7 +61,20 @@ async function imageUrlToBuffer(url) {
 }
 
 async function generateWithOpenRouter(apiKey, options) {
-  const { prompt, model } = options;
+  const { prompt, model, history = [], referenceImages = [] } = options;
+
+  const messages = [
+    ...history
+      .filter((msg) => msg.content?.trim())
+      .map((msg) => ({ role: msg.role, content: msg.content })),
+    {
+      role: "user",
+      content: [
+        ...referenceImages.map((url) => ({ type: "image_url", image_url: { url } })),
+        { type: "text", text: prompt },
+      ],
+    },
+  ];
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -71,7 +84,7 @@ async function generateWithOpenRouter(apiKey, options) {
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: "user", content: prompt }],
+      messages,
       modalities: ["image", "text"],
     }),
   });

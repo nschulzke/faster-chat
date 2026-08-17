@@ -7,10 +7,11 @@ async function generateImage({
   aspectRatio = IMAGE_GENERATION.DEFAULT_ASPECT_RATIO,
   chatId,
   model,
+  excludeMessageId,
 }) {
   return apiFetch("/api/images/generate", {
     method: "POST",
-    body: JSON.stringify({ prompt, aspectRatio, chatId, modelId: model }),
+    body: JSON.stringify({ prompt, aspectRatio, chatId, modelId: model, excludeMessageId }),
   });
 }
 

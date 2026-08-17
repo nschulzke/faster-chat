@@ -121,7 +121,7 @@ const ChatInterface = ({ chatId }) => {
     setInput("");
 
     generateImage(
-      { prompt, chatId, model: preferredImageModel },
+      { prompt, chatId, model: preferredImageModel, excludeMessageId: userMessageId },
       {
         onSuccess: async (data) => {
           const assistantMessageId = crypto.randomUUID();

@@ -1,15 +1,21 @@
 import { Hono } from "hono";
 import { randomUUID } from "crypto";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { IMAGE_GENERATION, IMAGE_MODELS } from "@faster-chat/shared";
+import { FILE_CATEGORIES, IMAGE_GENERATION, IMAGE_MODELS } from "@faster-chat/shared";
 import { dbUtils } from "../lib/db.js";
 import { ensureSession } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/rateLimiter.js";
 import { HTTP_STATUS } from "../lib/httpStatus.js";
 import { ENDPOINT_RATE_LIMITS } from "../lib/constants.js";
-import { createStoredFilename, calculateFileHash } from "../lib/fileUtils.js";
+import {
+  createStoredFilename,
+  calculateFileHash,
+  getAttachmentCategory,
+  getAttachmentMediaType,
+  resolveStoredFilePath,
+} from "../lib/fileUtils.js";
 import { generateImageForProvider } from "../lib/imageProviderFactory.js";
 import { decryptApiKey } from "../lib/encryption.js";
 
@@ -39,10 +45,47 @@ async function ensureGeneratedDirectory() {
   }
 }
 
+async function loadChatContext(chatId, userId, excludeMessageId) {
+  if (!chatId) {
+    return { history: [], referenceImages: [] };
+  }
+
+  const messages = dbUtils
+    .getMessagesByChatAndUserPaginated(chatId, userId, Number.MAX_SAFE_INTEGER, 0)
+    .filter((msg) => msg.role !== "system" && msg.id !== excludeMessageId);
+
+  const fileIds = [...new Set(messages.flatMap((msg) => msg.file_ids || []))];
+  const filesById = new Map(
+    (fileIds.length ? dbUtils.getFilesByIdsForUser(fileIds, userId) : []).map((f) => [f.id, f])
+  );
+
+  const imageFiles = fileIds
+    .map((id) => filesById.get(id))
+    .filter((file) => file && getAttachmentCategory(file) === FILE_CATEGORIES.IMAGE);
+
+  const referenceImages = await Promise.all(
+    imageFiles.map(async (file) => {
+      const bytes = await readFile(resolveStoredFilePath(file));
+      return `data:${getAttachmentMediaType(file)};base64,${bytes.toString("base64")}`;
+    })
+  );
+
+  return {
+    history: messages.map((msg) => ({ role: msg.role, content: msg.content })),
+    referenceImages,
+  };
+}
+
 imagesRouter.post("/generate", createRateLimiter(ENDPOINT_RATE_LIMITS.IMAGE_GEN), async (c) => {
   const user = c.get("user");
   const body = await c.req.json();
-  const { prompt, aspectRatio = IMAGE_GENERATION.DEFAULT_ASPECT_RATIO, chatId, modelId } = body;
+  const {
+    prompt,
+    aspectRatio = IMAGE_GENERATION.DEFAULT_ASPECT_RATIO,
+    chatId,
+    modelId,
+    excludeMessageId,
+  } = body;
 
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return c.json({ error: "Prompt is required" }, HTTP_STATUS.BAD_REQUEST);
@@ -83,12 +126,16 @@ imagesRouter.post("/generate", createRateLimiter(ENDPOINT_RATE_LIMITS.IMAGE_GEN)
     );
   }
 
+  const { history, referenceImages } = await loadChatContext(chatId, user.id, excludeMessageId);
+
   let generatedImage;
   try {
     generatedImage = await generateImageForProvider(providerName, apiKey, {
       prompt: prompt.trim(),
       aspectRatio,
       model: modelIdentifier,
+      history,
+      referenceImages,
     });
   } catch (error) {
     const message = error?.message || "";
