@@ -11,6 +11,7 @@ import { createXai } from "@ai-sdk/xai";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createCerebras } from "@ai-sdk/cerebras";
 import { createFireworks } from "@ai-sdk/fireworks";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { PROVIDER_DEFAULTS, shouldUseChatMethod } from "@faster-chat/shared";
 
 /**
@@ -64,9 +65,11 @@ const PROVIDER_FACTORIES = {
     }),
 
   openrouter: (config) =>
-    createOpenAI({
+    createOpenRouter({
       baseURL: config.baseUrl || "https://openrouter.ai/api/v1",
       apiKey: config.apiKey,
+      compatibility: "strict",
+      fetch: config.fetch,
     }),
 };
 
