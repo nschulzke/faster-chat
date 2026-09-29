@@ -91,6 +91,8 @@ export function useChatStream({
     id: chatId,
     messages: [],
     transport,
+    // Batch token deltas so long responses do not rerender once per provider chunk.
+    experimental_throttle: 50,
     onFinish: async ({ message }) => {
       const content = message.parts
         .filter((part) => part.type === "text")

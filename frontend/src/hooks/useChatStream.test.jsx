@@ -85,6 +85,12 @@ describe("useChatStream", () => {
     expect(body.messages.map((m) => m.content)).toEqual(["hello", "hi there"]);
   });
 
+  test("throttles streaming message updates", () => {
+    setup([]);
+
+    expect(sdk.chatOptions.experimental_throttle).toBe(50);
+  });
+
   test("persists completed AI SDK reasoning parts", async () => {
     const onMessageComplete = vi.fn();
     setup([], { onMessageComplete });

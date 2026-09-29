@@ -82,7 +82,7 @@ describe("MessageItem editing", () => {
 });
 
 describe("MessageItem reasoning", () => {
-  test("shows streamed AI SDK reasoning parts in a collapsed section", () => {
+  test("mounts streamed reasoning only when its collapsed section is opened", async () => {
     render(
       <MessageItem
         message={{
@@ -95,11 +95,14 @@ describe("MessageItem reasoning", () => {
       />
     );
 
-    const reasoning = screen.getByText("Checking the constraints");
-    expect(reasoning.closest("details").open).toBe(false);
+    expect(screen.queryByText("Checking the constraints")).toBeNull();
+
+    fireEvent.click(screen.getByText("Reasoning"));
+
+    expect(await screen.findByText("Checking the constraints")).toBeTruthy();
   });
 
-  test("shows persisted AI SDK reasoning parts", () => {
+  test("shows persisted AI SDK reasoning parts", async () => {
     const message = toCanonicalMessage({
       ...assistantMessage,
       metadata: {
@@ -109,7 +112,11 @@ describe("MessageItem reasoning", () => {
 
     render(<MessageItem message={message} />);
 
-    expect(screen.getByText("Recalled reasoning")).toBeTruthy();
+    expect(screen.queryByText("Recalled reasoning")).toBeNull();
     expect(screen.getByText("an answer")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Reasoning"));
+
+    expect(await screen.findByText("Recalled reasoning")).toBeTruthy();
   });
 });

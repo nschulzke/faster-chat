@@ -42,6 +42,27 @@ const parseThinkingBlocks = (text) => {
   return { thinking, content };
 };
 
+const ReasoningDetails = ({ content }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <details
+      className="bg-theme-surface/50 border-theme-border/50 group rounded-lg border"
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+      <summary className="text-theme-text-muted hover:text-theme-text flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium transition-colors select-none">
+        <Brain className="text-theme-mauve h-4 w-4 flex-shrink-0" />
+        <span>Reasoning</span>
+        <ChevronDown className="ml-auto h-4 w-4 transform-gpu transition-transform group-open:rotate-180" />
+      </summary>
+      {isOpen && (
+        <div className="text-theme-text-muted border-theme-border/50 border-t px-3 py-3 text-sm">
+          <MarkdownContent content={content} />
+        </div>
+      )}
+    </details>
+  );
+};
+
 const MessageItem = memo(({ message, onStop, onRegenerate, onEdit }) => {
   const [isEditing, setIsEditing] = useState(false);
   const isUser = message.role === "user";
@@ -52,8 +73,8 @@ const MessageItem = memo(({ message, onStop, onRegenerate, onEdit }) => {
   const reasoningParts = isUser
     ? []
     : (message.parts ?? [])
-        .filter((part) => part.type === "reasoning" && part.text?.trim())
-        .map((part) => part.text.trim());
+        .filter((part) => part.type === "reasoning" && part.text)
+        .map((part) => part.text);
   const thinking = reasoningParts.length > 0 ? reasoningParts : parsedContent.thinking;
   const content = parsedContent.content;
   const isStreaming = message.experimental_status === "streaming";
@@ -108,18 +129,7 @@ const MessageItem = memo(({ message, onStop, onRegenerate, onEdit }) => {
             {hasThinking && (
               <div className="mb-4">
                 {thinking.map((thinkContent, index) => (
-                  <details
-                    key={index}
-                    className="bg-theme-surface/50 border-theme-border/50 group rounded-lg border">
-                    <summary className="text-theme-text-muted hover:text-theme-text flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium transition-colors select-none">
-                      <Brain className="text-theme-mauve h-4 w-4 flex-shrink-0" />
-                      <span>Reasoning</span>
-                      <ChevronDown className="ml-auto h-4 w-4 transform-gpu transition-transform group-open:rotate-180" />
-                    </summary>
-                    <div className="text-theme-text-muted border-theme-border/50 border-t px-3 py-3 text-sm">
-                      <MarkdownContent content={thinkContent} />
-                    </div>
-                  </details>
+                  <ReasoningDetails key={index} content={thinkContent} />
                 ))}
               </div>
             )}
