@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/preact";
 
-const sdk = { transportOptions: null, messages: [] };
+const sdk = { transportOptions: null, chatOptions: null, messages: [] };
 
 vi.mock("ai", () => ({
   DefaultChatTransport: class {
@@ -12,18 +12,21 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@ai-sdk/react", () => ({
-  useChat: () => ({
-    messages: sdk.messages,
-    sendMessage: vi.fn(),
-    regenerate: vi.fn(),
-    status: "ready",
-    error: null,
-    stop: vi.fn(),
-    clearError: vi.fn(),
-    setMessages: (next) => {
-      sdk.messages = typeof next === "function" ? next(sdk.messages) : next;
-    },
-  }),
+  useChat: (options) => {
+    sdk.chatOptions = options;
+    return {
+      messages: sdk.messages,
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      status: "ready",
+      error: null,
+      stop: vi.fn(),
+      clearError: vi.fn(),
+      setMessages: (next) => {
+        sdk.messages = typeof next === "function" ? next(sdk.messages) : next;
+      },
+    };
+  },
 }));
 
 const { useChatStream } = await import("@/hooks/useChatStream");
@@ -36,11 +39,12 @@ describe("useChatStream", () => {
   beforeEach(() => {
     sdk.messages = [];
     sdk.transportOptions = null;
+    sdk.chatOptions = null;
   });
 
-  function setup(persistedMessages) {
+  function setup(persistedMessages, options = {}) {
     return renderHook(() =>
-      useChatStream({ chatId: "chat-1", model: "gpt-4o", persistedMessages })
+      useChatStream({ chatId: "chat-1", model: "gpt-4o", persistedMessages, ...options })
     );
   }
 
@@ -79,5 +83,31 @@ describe("useChatStream", () => {
     });
 
     expect(body.messages.map((m) => m.content)).toEqual(["hello", "hi there"]);
+  });
+
+  test("persists completed AI SDK reasoning parts", async () => {
+    const onMessageComplete = vi.fn();
+    setup([], { onMessageComplete });
+
+    await sdk.chatOptions.onFinish({
+      message: {
+        id: "m2",
+        role: "assistant",
+        createdAt: 123,
+        parts: [
+          { type: "reasoning", text: "Checked the constraints" },
+          { type: "text", text: "The answer" },
+        ],
+      },
+    });
+
+    expect(onMessageComplete).toHaveBeenCalledWith({
+      id: "m2",
+      content: "The answer",
+      metadata: {
+        reasoningParts: [{ type: "reasoning", text: "Checked the constraints" }],
+      },
+      createdAt: 123,
+    });
   });
 });

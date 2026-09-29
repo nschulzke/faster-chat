@@ -46,9 +46,16 @@ const MessageItem = memo(({ message, onStop, onRegenerate, onEdit }) => {
   const [isEditing, setIsEditing] = useState(false);
   const isUser = message.role === "user";
   const rawContent = extractTextContent(message);
-  const { thinking, content } = isUser
+  const parsedContent = isUser
     ? { thinking: [], content: rawContent }
     : parseThinkingBlocks(rawContent);
+  const reasoningParts = isUser
+    ? []
+    : (message.parts ?? [])
+        .filter((part) => part.type === "reasoning" && part.text?.trim())
+        .map((part) => part.text.trim());
+  const thinking = reasoningParts.length > 0 ? reasoningParts : parsedContent.thinking;
+  const content = parsedContent.content;
   const isStreaming = message.experimental_status === "streaming";
   const showActions = !isUser && (onStop || onRegenerate);
   const canEdit = isUser && !!onEdit;

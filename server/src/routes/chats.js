@@ -523,6 +523,7 @@ chatsRouter.post(
 
       const providerLabel = modelRecord.provider_display_name || modelRecord.provider_name;
       return stream.toUIMessageStreamResponse({
+        sendReasoning: true,
         onError: (error) => {
           console.error("Stream error:", error);
           return humanizeProviderError(error, providerLabel);

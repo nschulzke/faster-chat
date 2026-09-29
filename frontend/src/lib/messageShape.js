@@ -2,6 +2,9 @@ import { getMessageTimestamp } from "./messageUtils.js";
 
 export function toCanonicalMessage(msg) {
   const parts = [{ type: "text", text: msg.content ?? "" }];
+  if (msg.metadata?.reasoningParts) {
+    parts.push(...msg.metadata.reasoningParts);
+  }
   if (msg.metadata?.toolParts) {
     parts.push(...msg.metadata.toolParts);
   }

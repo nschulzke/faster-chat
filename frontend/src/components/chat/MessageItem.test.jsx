@@ -1,6 +1,7 @@
 import { describe, test, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/preact";
 import MessageItem from "@/components/chat/MessageItem";
+import { toCanonicalMessage } from "@/lib/messageShape";
 
 vi.mock("@/components/markdown/MarkdownRenderer", () => ({
   MarkdownContent: ({ content }) => <div>{content}</div>,
@@ -77,5 +78,38 @@ describe("MessageItem editing", () => {
     expect(onEdit).not.toHaveBeenCalled();
     expect(screen.getByText("original question")).toBeTruthy();
     expect(screen.queryByLabelText("Edit message content")).toBeNull();
+  });
+});
+
+describe("MessageItem reasoning", () => {
+  test("shows streamed AI SDK reasoning parts in a collapsed section", () => {
+    render(
+      <MessageItem
+        message={{
+          ...assistantMessage,
+          parts: [
+            { type: "reasoning", text: "Checking the constraints" },
+            { type: "text", text: "" },
+          ],
+        }}
+      />
+    );
+
+    const reasoning = screen.getByText("Checking the constraints");
+    expect(reasoning.closest("details").open).toBe(false);
+  });
+
+  test("shows persisted AI SDK reasoning parts", () => {
+    const message = toCanonicalMessage({
+      ...assistantMessage,
+      metadata: {
+        reasoningParts: [{ type: "reasoning", text: "Recalled reasoning" }],
+      },
+    });
+
+    render(<MessageItem message={message} />);
+
+    expect(screen.getByText("Recalled reasoning")).toBeTruthy();
+    expect(screen.getByText("an answer")).toBeTruthy();
   });
 });

@@ -99,7 +99,16 @@ export function useChatStream({
 
       const toolParts =
         message.parts?.filter((p) => p.type === "tool-invocation" && p.state === "result") || [];
-      const metadata = toolParts.length > 0 ? { toolParts } : null;
+      const reasoningParts = (message.parts ?? [])
+        .filter((part) => part.type === "reasoning" && part.text?.trim())
+        .map((part) => ({ type: "reasoning", text: part.text }));
+      const metadata =
+        toolParts.length > 0 || reasoningParts.length > 0
+          ? {
+              ...(toolParts.length > 0 && { toolParts }),
+              ...(reasoningParts.length > 0 && { reasoningParts }),
+            }
+          : null;
 
       if (onMessageComplete && content.trim()) {
         await onMessageComplete({
